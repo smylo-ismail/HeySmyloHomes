@@ -1,0 +1,201 @@
+import { describe, expect, it } from 'vitest';
+import { computeGrants, type GrantInput } from './grants';
+
+const case1Input: GrantInput = {
+  applicationType: 'FAMILY',
+  citizenshipMix: 'SC_SC',
+  allFirstTimers: true,
+  avgMonthlyHouseholdIncome: 7_000,
+  employedContinuously12Months: true,
+  buyerAges: [30, 29],
+  flatSource: 'RESALE',
+  flatType: '4R',
+  remainingLeaseYears: 70,
+  proximity: 'WITHIN_4KM',
+  ownsOrDisposedPrivateWithin30Months: false,
+};
+
+const case2Input: GrantInput = {
+  applicationType: 'FAMILY',
+  citizenshipMix: 'SC_SPR',
+  allFirstTimers: true,
+  avgMonthlyHouseholdIncome: 9_000,
+  employedContinuously12Months: true,
+  buyerAges: [30, 26],
+  flatSource: 'RESALE',
+  flatType: '5R',
+  remainingLeaseYears: 40,
+  proximity: 'WITH_PARENTS_OR_CHILD',
+  ownsOrDisposedPrivateWithin30Months: false,
+};
+
+describe('computeGrants — golden cases', () => {
+  it('case 1: happy path first-timer SC/SC family, resale 4R', () => {
+    const result = computeGrants(case1Input);
+    expect(result.chg).toBe(80_000);
+    expect(result.ehg).toBe(30_000);
+    expect(result.phg).toBe(20_000);
+    expect(result.total).toBe(130_000);
+    expect(result.warnings).toEqual([]);
+    expect(result.ineligibilityReasons).toEqual([]);
+  });
+
+  it('case 2: outlier stack — SC/SPR penalty, income-ceiling boundary, short lease', () => {
+    const result = computeGrants(case2Input);
+    expect(result.chg).toBe(40_000);
+    expect(result.ehg).toBe(5_000);
+    expect(result.phg).toBe(30_000);
+    expect(result.total).toBe(75_000);
+    expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(true);
+  });
+
+  it('case 2 subtest: EHG at income $9,001 -> $0 (one dollar over ceiling)', () => {
+    const result = computeGrants({ ...case2Input, avgMonthlyHouseholdIncome: 9_001 });
+    expect(result.ehg).toBe(0);
+  });
+
+  it('case 2 subtest: EHG at income $9,000 (inclusive ceiling) -> $5,000', () => {
+    const result = computeGrants({ ...case2Input, avgMonthlyHouseholdIncome: 9_000 });
+    expect(result.ehg).toBe(5_000);
+  });
+
+  it('case 3: 30-month wait-out disqualifies all grants regardless of other inputs', () => {
+    const result = computeGrants({ ...case1Input, ownsOrDisposedPrivateWithin30Months: true });
+    expect(result.chg).toBe(0);
+    expect(result.ehg).toBe(0);
+    expect(result.phg).toBe(0);
+    expect(result.total).toBe(0);
+    expect(result.ineligibilityReasons.some((r) => /30-month wait-out/i.test(r))).toBe(true);
+  });
+});
+
+describe('computeGrants — boundary sub-tests', () => {
+  it.each([
+    [1_500, 120_000],
+    [1_501, 110_000],
+    [2_000, 110_000],
+    [2_001, 100_000],
+    [7_000, 30_000],
+    [9_000, 5_000],
+    [9_001, 0],
+  ])('EHG family band at income $%i -> $%i', (income, expected) => {
+    const result = computeGrants({ ...case1Input, avgMonthlyHouseholdIncome: income });
+    expect(result.ehg).toBe(expected);
+  });
+
+  it.each([
+    [20, true],
+    [19, false],
+  ])('CHG lease gate at remainingLeaseYears=%i -> passes=%s', (years, passes) => {
+    const result = computeGrants({ ...case1Input, remainingLeaseYears: years });
+    expect(result.chg > 0).toBe(passes);
+  });
+
+  it('PHG NONE -> $0 without affecting CHG/EHG', () => {
+    const result = computeGrants({ ...case1Input, proximity: 'NONE' });
+    expect(result.phg).toBe(0);
+    expect(result.chg).toBe(80_000);
+    expect(result.ehg).toBe(30_000);
+  });
+});
+
+describe('computeGrants — remaining decision-tree branches', () => {
+  it('second-timer / non-first-timer household -> all grants zero with reason', () => {
+    const result = computeGrants({ ...case1Input, allFirstTimers: false });
+    expect(result.total).toBe(0);
+    expect(result.ineligibilityReasons.some((r) => /second-timer/i.test(r))).toBe(true);
+  });
+
+  it('BTO branch: EHG only, no CHG/PHG even with proximity set', () => {
+    const result = computeGrants({
+      ...case1Input,
+      flatSource: 'BTO',
+      avgMonthlyHouseholdIncome: 7_000,
+    });
+    expect(result.ehg).toBe(30_000);
+    expect(result.chg).toBe(0);
+    expect(result.phg).toBe(0);
+    expect(result.total).toBe(30_000);
+  });
+
+  it('BTO branch: EHG fails when not continuously employed 12 months', () => {
+    const result = computeGrants({
+      ...case1Input,
+      flatSource: 'BTO',
+      employedContinuously12Months: false,
+    });
+    expect(result.ehg).toBe(0);
+  });
+
+  it('BTO branch: EHG fails above the FAMILY $9,000 income ceiling', () => {
+    const result = computeGrants({
+      ...case1Input,
+      flatSource: 'BTO',
+      avgMonthlyHouseholdIncome: 9_001,
+    });
+    expect(result.ehg).toBe(0);
+  });
+
+  it('RESALE: CHG fails on income -> EHG also blocked even if independently eligible', () => {
+    const result = computeGrants({ ...case1Input, avgMonthlyHouseholdIncome: 14_001 });
+    expect(result.chg).toBe(0);
+    expect(result.ehg).toBe(0);
+    expect(result.ineligibilityReasons.length).toBeGreaterThan(0);
+  });
+
+  it('RESALE: CHG fails on lease<20 -> EHG also blocked, PHG still computed', () => {
+    const result = computeGrants({ ...case1Input, remainingLeaseYears: 19 });
+    expect(result.chg).toBe(0);
+    expect(result.ehg).toBe(0);
+    expect(result.phg).toBe(20_000);
+  });
+
+  it('RESALE FAMILY small flat (2R-4R) CHG amount is $80,000', () => {
+    const result = computeGrants({ ...case1Input, flatType: '3R' });
+    expect(result.chg).toBe(80_000);
+  });
+
+  it('RESALE FAMILY big flat (5R/EXEC/3GEN) CHG amount is $50,000', () => {
+    const result = computeGrants({ ...case1Input, citizenshipMix: 'SC_SC', flatType: 'EXEC' });
+    expect(result.chg).toBe(50_000);
+  });
+
+  it('SC_SPR penalty subtracts $10,000 from CHG and warns about Citizen Top-Up', () => {
+    const result = computeGrants({ ...case1Input, citizenshipMix: 'SC_SPR' });
+    expect(result.chg).toBe(70_000);
+    expect(result.warnings.some((w) => /citizen top-up/i.test(w))).toBe(true);
+  });
+
+  it('PHG WITH_PARENTS_OR_CHILD (family) is $30,000', () => {
+    const result = computeGrants({ ...case1Input, proximity: 'WITH_PARENTS_OR_CHILD' });
+    expect(result.phg).toBe(30_000);
+  });
+
+  it('lease-to-95 warning fires when lease + youngest buyer age < 95', () => {
+    const result = computeGrants({ ...case1Input, remainingLeaseYears: 60, buyerAges: [30, 30] });
+    expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(true);
+  });
+
+  it('lease-to-95 warning does not fire when coverage is exactly 95', () => {
+    const result = computeGrants({ ...case1Input, remainingLeaseYears: 65, buyerAges: [30, 30] });
+    expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(false);
+  });
+
+  it('SINGLE application: EHG surfaces unverified-table warning instead of a guessed amount', () => {
+    const result = computeGrants({
+      ...case1Input,
+      applicationType: 'SINGLE',
+      citizenshipMix: 'SC_ONLY',
+      avgMonthlyHouseholdIncome: 4_000,
+      buyerAges: [30],
+    });
+    expect(result.ehg).toBe(0);
+    expect(result.warnings.some((w) => /pending verification/i.test(w))).toBe(true);
+  });
+
+  it('NON_RESIDENT_SPOUSE: no amounts specified -> explicit reason, not a guessed number', () => {
+    const result = computeGrants({ ...case1Input, applicationType: 'NON_RESIDENT_SPOUSE' });
+    expect(result.total).toBe(0);
+    expect(result.ineligibilityReasons.length).toBeGreaterThan(0);
+  });
+});
