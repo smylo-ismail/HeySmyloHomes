@@ -1,36 +1,69 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# smylo — property scenario simulator
 
-## Getting Started
+A client-facing web app for a Singapore property agent (smylo). Buyers and sellers simulate
+their transaction — buy, sell, or concurrent buy+sell — across HDB (BTO + resale), private
+resale, and new launch condos. Each simulation outputs a full cost breakdown, grants, loan
+affordability with binding constraint, combined cash flow timeline, and a process timeline.
 
-First, run the development server:
+Full product spec lives with the project owner; this README covers running and building the app.
+
+## Stack
+
+- Next.js 14 (App Router), TypeScript `strict`, Tailwind CSS
+- Vitest for unit/integration tests — every file in `lib/calc/` has a sibling `.test.ts`
+- Zod for scenario input schemas
+- Static export (`output: 'export'`) — deployed to **Cloudflare Pages**, not Vercel
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Testing
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test        # run the calc engine test suite once
+npm run test:watch
+```
 
-## Learn More
+All figures in `lib/calc/` are verified against hand-computed golden test cases (grants, stamp
+duties, loan binding constraints) to the exact dollar.
 
-To learn more about Next.js, take a look at the following resources:
+## Building
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run build
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Produces a static export in `out/` (no server components with data fetching, no API routes,
+images unoptimized) — this is a hard constraint for Cloudflare Pages deployment.
 
-## Deploy on Vercel
+## Project structure
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+/app                    # routes: /, /simulate/[type]
+/components             # UI primitives (Figure, RuledRow, MicroLabel, InkButton, WarningsPanel)
+/lib/calc/               # pure calc engines: bsd, absd, ssd, loan, cpf, grants, resaleLevy, fees, cashflow
+/lib/schema/             # zod schemas for scenario inputs
+/lib/hooks/              # client hooks (localStorage draft persistence)
+/config/rates.ts         # single source of truth for all rates/amounts/ceilings/durations
+/config/design.ts        # design tokens ("Editorial Utility" language)
+/config/agent.ts         # agent name, WhatsApp number, whitelisted agent emails
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Status
+
+- **Phase 1 (calc engines):** done — grants, BSD/ABSD/SSD, loan (LTV/MSR/TDSR binding
+  constraint), CPF, resale levy, fees, cashflow. All verified against golden test cases.
+- **Phase 2 (first-timer wizard):** done — `FIRST_TIMER_HDB_BUY` wizard + results screen,
+  anonymous with localStorage draft persistence, expandable "how this was computed" breakdowns.
+- **Phase 3+ (sell & concurrent, auth/persistence, share/compare/agent dashboard, V2):** not
+  yet built.
+
+Rates/amounts sourced from HDB, IRAS, and MAS as of the date in `config/rates.ts`'s `asOfDate`
+— verify against official pages before relying on this for real transactions. Every result
+screen carries an "estimates only" disclaimer for the same reason.
