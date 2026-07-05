@@ -74,7 +74,7 @@ describe('computeGrants — boundary sub-tests', () => {
     [1_500, 120_000],
     [1_501, 110_000],
     [2_000, 110_000],
-    [2_001, 100_000],
+    [2_001, 105_000],
     [7_000, 30_000],
     [9_000, 5_000],
     [9_001, 0],
@@ -181,7 +181,7 @@ describe('computeGrants — remaining decision-tree branches', () => {
     expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(false);
   });
 
-  it('SINGLE application: EHG surfaces unverified-table warning instead of a guessed amount', () => {
+  it('SINGLE application: EHG looked up from the official EHG Singles table', () => {
     const result = computeGrants({
       ...case1Input,
       applicationType: 'SINGLE',
@@ -189,13 +189,43 @@ describe('computeGrants — remaining decision-tree branches', () => {
       avgMonthlyHouseholdIncome: 4_000,
       buyerAges: [30],
     });
-    expect(result.ehg).toBe(0);
-    expect(result.warnings.some((w) => /pending verification/i.test(w))).toBe(true);
+    // $3,751-$4,000 band -> $10,000
+    expect(result.ehg).toBe(10_000);
   });
 
-  it('NON_RESIDENT_SPOUSE: no amounts specified -> explicit reason, not a guessed number', () => {
+  it('SINGLE application: EHG ineligible above the $4,500 ceiling', () => {
+    const result = computeGrants({
+      ...case1Input,
+      applicationType: 'SINGLE',
+      citizenshipMix: 'SC_ONLY',
+      avgMonthlyHouseholdIncome: 4_501,
+      buyerAges: [30],
+    });
+    expect(result.ehg).toBe(0);
+  });
+
+  it('JOINT_SINGLES uses the same EHG table as FAMILY (confirmed identical HDB tables)', () => {
+    const family = computeGrants({ ...case1Input, applicationType: 'FAMILY' });
+    const jointSingles = computeGrants({ ...case1Input, applicationType: 'JOINT_SINGLES' });
+    expect(jointSingles.ehg).toBe(family.ehg);
+    expect(jointSingles.chg).toBe(family.chg);
+  });
+
+  it('NON_RESIDENT_SPOUSE: EHG keyed on half the household income against the Singles table', () => {
+    // income 7,000 -> half 3,500 -> $3,251-$3,500 band -> $15,000
     const result = computeGrants({ ...case1Input, applicationType: 'NON_RESIDENT_SPOUSE' });
-    expect(result.total).toBe(0);
-    expect(result.ineligibilityReasons.length).toBeGreaterThan(0);
+    expect(result.ehg).toBe(15_000);
+    // CHG/PHG fall back to the SINGLE tier's amounts
+    expect(result.chg).toBe(40_000);
+    expect(result.phg).toBe(10_000);
+  });
+
+  it('NON_RESIDENT_SPOUSE: EHG ineligible once half of household income exceeds $4,500', () => {
+    const result = computeGrants({
+      ...case1Input,
+      applicationType: 'NON_RESIDENT_SPOUSE',
+      avgMonthlyHouseholdIncome: 9_001,
+    });
+    expect(result.ehg).toBe(0);
   });
 });

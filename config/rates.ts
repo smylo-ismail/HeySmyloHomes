@@ -64,30 +64,73 @@ export const RATES = {
 
   grants: {
     ehgIncomeCeiling: { FAMILY: 9_000, SINGLE: 4_500 },
-    // Official HDB Enhanced Housing Grant (Families) table, post-Aug-2024.
+    // Official HDB "Enhanced CPF Housing Grant (EHG) amount for first-timer households"
+    // table, post-Aug-2024. Confirmed identical to HDB's "Grant amount for two or more
+    // first-timer singles" table (Joint Singles Scheme) — see grants.ts householdTier.
     // Band is inclusive of maxIncome; income above the last band's maxIncome is ineligible.
     ehgFamilyBands: [
       { maxIncome: 1_500, amount: 120_000 },
       { maxIncome: 2_000, amount: 110_000 },
-      { maxIncome: 2_500, amount: 100_000 },
-      { maxIncome: 3_000, amount: 90_000 },
-      { maxIncome: 3_500, amount: 80_000 },
-      { maxIncome: 4_000, amount: 70_000 },
-      { maxIncome: 4_500, amount: 60_000 },
-      { maxIncome: 5_000, amount: 50_000 },
-      { maxIncome: 5_500, amount: 45_000 },
-      { maxIncome: 6_000, amount: 40_000 },
-      { maxIncome: 6_500, amount: 35_000 },
+      { maxIncome: 2_500, amount: 105_000 },
+      { maxIncome: 3_000, amount: 95_000 },
+      { maxIncome: 3_500, amount: 90_000 },
+      { maxIncome: 4_000, amount: 80_000 },
+      { maxIncome: 4_500, amount: 70_000 },
+      { maxIncome: 5_000, amount: 65_000 },
+      { maxIncome: 5_500, amount: 55_000 },
+      { maxIncome: 6_000, amount: 50_000 },
+      { maxIncome: 6_500, amount: 40_000 },
       { maxIncome: 7_000, amount: 30_000 },
       { maxIncome: 7_500, amount: 25_000 },
       { maxIncome: 8_000, amount: 20_000 },
-      { maxIncome: 8_500, amount: 15_000 },
+      { maxIncome: 8_500, amount: 10_000 },
       { maxIncome: 9_000, amount: 5_000 },
     ],
-    // NOT YET VERIFIED — pre-launch checklist (spec §12) assigns populating this table
-    // from HDB's official EHG (Singles) page as a human task. Left null on purpose so the
-    // engine surfaces a clear "pending verification" result instead of a guessed figure.
-    ehgSingleBands: null as { maxIncome: number; amount: number }[] | null,
+    // Official HDB "Grant amount for single applicant/single child" table (EHG Singles),
+    // post-Aug-2024. Also used for the Non-Resident-Spouse scheme, but keyed on HALF the
+    // average monthly household income rather than the individual's income directly — see
+    // grants.ts computeEhg.
+    ehgSingleBands: [
+      { maxIncome: 750, amount: 60_000 },
+      { maxIncome: 1_000, amount: 55_000 },
+      { maxIncome: 1_250, amount: 52_500 },
+      { maxIncome: 1_500, amount: 47_500 },
+      { maxIncome: 1_750, amount: 45_000 },
+      { maxIncome: 2_000, amount: 40_000 },
+      { maxIncome: 2_250, amount: 35_000 },
+      { maxIncome: 2_500, amount: 32_500 },
+      { maxIncome: 2_750, amount: 27_500 },
+      { maxIncome: 3_000, amount: 25_000 },
+      { maxIncome: 3_250, amount: 20_000 },
+      { maxIncome: 3_500, amount: 15_000 },
+      { maxIncome: 3_750, amount: 12_500 },
+      { maxIncome: 4_000, amount: 10_000 },
+      { maxIncome: 4_250, amount: 5_000 },
+      { maxIncome: 4_500, amount: 2_500 },
+    ],
+    // "EHG amount for couples comprising a first-timer and second-timer household" (the
+    // Step-Up scheme) uses this same table, keyed on half the household income — deliberately
+    // NOT wired into grants.ts: V1 explicitly doesn't support second-timer/mixed households
+    // (spec §5 "!allFirstTimers" branch, §13 out-of-scope). Left here as a documented source
+    // for whoever builds Step-Up later, so it doesn't need re-sourcing from scratch.
+    ehgStepUpBandsHalfIncome: [
+      { maxIncome: 750, amount: 60_000 },
+      { maxIncome: 1_000, amount: 55_000 },
+      { maxIncome: 1_250, amount: 52_500 },
+      { maxIncome: 1_500, amount: 47_500 },
+      { maxIncome: 1_750, amount: 45_000 },
+      { maxIncome: 2_000, amount: 40_000 },
+      { maxIncome: 2_250, amount: 35_000 },
+      { maxIncome: 2_500, amount: 32_500 },
+      { maxIncome: 2_750, amount: 27_500 },
+      { maxIncome: 3_000, amount: 25_000 },
+      { maxIncome: 3_250, amount: 20_000 },
+      { maxIncome: 3_500, amount: 15_000 },
+      { maxIncome: 3_750, amount: 12_500 },
+      { maxIncome: 4_000, amount: 10_000 },
+      { maxIncome: 4_250, amount: 5_000 },
+      { maxIncome: 4_500, amount: 2_500 },
+    ],
     chg: {
       incomeCeiling: { FAMILY: 14_000, SINGLE: 7_000, JOINT_SINGLES: 14_000 },
       minRemainingLeaseYears: 20,

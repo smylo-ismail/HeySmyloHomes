@@ -32,40 +32,34 @@ export interface GrantResult {
 const SMALL_FLAT_TYPES: readonly FlatType[] = ['2R', '3R', '4R'];
 const isBigFlat = (flatType: FlatType) => !SMALL_FLAT_TYPES.includes(flatType);
 
-// FAMILY maps directly onto the FAMILY tables. JOINT_SINGLES follows the SINGLE quantum
-// for CHG/PHG/EHG-ceiling purposes — the spec gives no separate joint-singles figure, this
-// is the closest documented tier. NON_RESIDENT_SPOUSE has no amounts specified anywhere in
-// the spec, so it resolves to null and surfaces an explicit "needs confirmation" reason
-// rather than guessing a number.
+// FAMILY and JOINT_SINGLES use identical HDB EHG/CHG/PHG tables — HDB's "EHG amount for
+// first-timer households" and "Grant amount for two or more first-timer singles" tables are
+// confirmed byte-for-byte identical. SINGLE and NON_RESIDENT_SPOUSE both use the EHG Singles
+// table and SINGLE CHG/PHG amounts (the latter is this codebase's inference for CHG/PHG —
+// HDB's non-resident-spouse table only covers EHG — flag if that turns out wrong).
+// NON_RESIDENT_SPOUSE additionally computes EHG on HALF the household income rather than
+// income directly, per HDB's "applicant with non-resident spouse" table.
 type HouseholdTier = 'FAMILY' | 'SINGLE';
 
-function householdTier(applicationType: ApplicationType): HouseholdTier | null {
-  if (applicationType === 'FAMILY') return 'FAMILY';
-  if (applicationType === 'SINGLE' || applicationType === 'JOINT_SINGLES') return 'SINGLE';
-  return null;
+function householdTier(applicationType: ApplicationType): HouseholdTier {
+  return applicationType === 'FAMILY' || applicationType === 'JOINT_SINGLES' ? 'FAMILY' : 'SINGLE';
 }
 
-function lookupEhg(tier: HouseholdTier, income: number): { amount: number; unverified: boolean } {
-  if (tier === 'SINGLE') {
-    if (!RATES.grants.ehgSingleBands) return { amount: 0, unverified: true };
-    const band = RATES.grants.ehgSingleBands.find((b) => income <= b.maxIncome);
-    return { amount: band?.amount ?? 0, unverified: false };
-  }
-  const band = RATES.grants.ehgFamilyBands.find((b) => income <= b.maxIncome);
-  return { amount: band?.amount ?? 0, unverified: false };
+function lookupEhg(tier: HouseholdTier, income: number): number {
+  const bands = tier === 'SINGLE' ? RATES.grants.ehgSingleBands : RATES.grants.ehgFamilyBands;
+  return bands.find((b) => income <= b.maxIncome)?.amount ?? 0;
 }
 
-const EHG_SINGLES_UNVERIFIED_WARNING =
-  "EHG income-band table for singles is pending verification against HDB's official page — check with smylo before relying on this figure.";
-
-/** Applies the EHG income + employment-continuity gate and looks up the band amount. */
-function computeEhg(tier: HouseholdTier, input: GrantInput, warnings: string[]): number {
+/** Applies the EHG income + employment-continuity gate and looks up the band amount.
+ *  NON_RESIDENT_SPOUSE is keyed on half the household income (its own HDB table). */
+function computeEhg(applicationType: ApplicationType, tier: HouseholdTier, input: GrantInput): number {
+  const effectiveIncome =
+    applicationType === 'NON_RESIDENT_SPOUSE'
+      ? input.avgMonthlyHouseholdIncome / 2
+      : input.avgMonthlyHouseholdIncome;
   const ceiling = RATES.grants.ehgIncomeCeiling[tier];
-  if (input.avgMonthlyHouseholdIncome > ceiling || !input.employedContinuously12Months) return 0;
-
-  const looked = lookupEhg(tier, input.avgMonthlyHouseholdIncome);
-  if (looked.unverified) warnings.push(EHG_SINGLES_UNVERIFIED_WARNING);
-  return looked.amount;
+  if (effectiveIncome > ceiling || !input.employedContinuously12Months) return 0;
+  return lookupEhg(tier, effectiveIncome);
 }
 
 /** Implements the §5 decision tree exactly; every branch is unit-tested in grants.test.ts. */
@@ -98,13 +92,7 @@ export function computeGrants(input: GrantInput): GrantResult {
   const tier = householdTier(input.applicationType);
 
   if (input.flatSource === 'BTO') {
-    if (!tier) {
-      ineligibilityReasons.push(
-        `EHG amounts for ${input.applicationType} are not specified in the V1 spec — worth a chat with smylo.`
-      );
-      return { ...zero, ineligibilityReasons, warnings };
-    }
-    const ehg = computeEhg(tier, input, warnings);
+    const ehg = computeEhg(input.applicationType, tier, input);
     return { ehg, chg: 0, phg: 0, total: ehg, ineligibilityReasons, warnings };
   }
 
@@ -121,53 +109,44 @@ export function computeGrants(input: GrantInput): GrantResult {
   let chg = 0;
   let chgPassed = false;
 
-  if (!tier) {
+  const chgCeiling =
+    input.applicationType === 'JOINT_SINGLES'
+      ? RATES.grants.chg.incomeCeiling.JOINT_SINGLES
+      : RATES.grants.chg.incomeCeiling[tier];
+  const incomeOk = input.avgMonthlyHouseholdIncome <= chgCeiling;
+  const leaseOk =
+    input.remainingLeaseYears !== undefined &&
+    input.remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
+
+  if (!incomeOk) {
     ineligibilityReasons.push(
-      `CHG amounts for ${input.applicationType} are not specified in the V1 spec — worth a chat with smylo.`
+      `Household income exceeds the CHG ceiling of $${chgCeiling.toLocaleString()}.`
     );
-  } else {
-    const chgCeiling =
-      input.applicationType === 'JOINT_SINGLES'
-        ? RATES.grants.chg.incomeCeiling.JOINT_SINGLES
-        : RATES.grants.chg.incomeCeiling[tier];
-    const incomeOk = input.avgMonthlyHouseholdIncome <= chgCeiling;
-    const leaseOk =
-      input.remainingLeaseYears !== undefined &&
-      input.remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
+  }
+  if (!leaseOk) {
+    ineligibilityReasons.push(
+      `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
+    );
+  }
 
-    if (!incomeOk) {
-      ineligibilityReasons.push(
-        `Household income exceeds the CHG ceiling of $${chgCeiling.toLocaleString()}.`
+  if (incomeOk && leaseOk) {
+    chgPassed = true;
+    const amounts = tier === 'FAMILY' ? RATES.grants.chg.familyAmount : RATES.grants.chg.singleAmount;
+    chg = isBigFlat(input.flatType) ? amounts.bigFlat : amounts.smallFlat;
+    if (input.citizenshipMix === 'SC_SPR') {
+      chg -= RATES.grants.chg.scSprPenalty;
+      warnings.push(
+        `Citizen Top-Up $${RATES.grants.chg.scSprPenalty.toLocaleString()} claimable if SPR spouse becomes SC.`
       );
-    }
-    if (!leaseOk) {
-      ineligibilityReasons.push(
-        `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
-      );
-    }
-
-    if (incomeOk && leaseOk) {
-      chgPassed = true;
-      const amounts =
-        tier === 'FAMILY' ? RATES.grants.chg.familyAmount : RATES.grants.chg.singleAmount;
-      chg = isBigFlat(input.flatType) ? amounts.bigFlat : amounts.smallFlat;
-      if (input.citizenshipMix === 'SC_SPR') {
-        chg -= RATES.grants.chg.scSprPenalty;
-        warnings.push(
-          `Citizen Top-Up $${RATES.grants.chg.scSprPenalty.toLocaleString()} claimable if SPR spouse becomes SC.`
-        );
-      }
     }
   }
 
-  const ehg = tier && chgPassed ? computeEhg(tier, input, warnings) : 0;
+  const ehg = chgPassed ? computeEhg(input.applicationType, tier, input) : 0;
 
   let phg = 0;
-  if (tier) {
-    const amounts = tier === 'FAMILY' ? RATES.grants.phg.familyAmount : RATES.grants.phg.singleAmount;
-    if (input.proximity === 'WITH_PARENTS_OR_CHILD') phg = amounts.withParentsOrChild;
-    else if (input.proximity === 'WITHIN_4KM') phg = amounts.within4km;
-  }
+  const phgAmounts = tier === 'FAMILY' ? RATES.grants.phg.familyAmount : RATES.grants.phg.singleAmount;
+  if (input.proximity === 'WITH_PARENTS_OR_CHILD') phg = phgAmounts.withParentsOrChild;
+  else if (input.proximity === 'WITHIN_4KM') phg = phgAmounts.within4km;
 
   return { ehg, chg, phg, total: chg + ehg + phg, ineligibilityReasons, warnings };
 }
