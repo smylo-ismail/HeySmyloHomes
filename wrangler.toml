@@ -1,0 +1,8 @@
+name = "heysmylohomes"
+compatibility_date = "2026-09-05"
+
+# Static export from `npm run build` (see next.config.mjs: output: 'export') lands in ./out.
+# No Worker script needed — this deploys as an assets-only Worker serving those files directly.
+[assets]
+directory = "./out"
+not_found_handling = "404-page"
