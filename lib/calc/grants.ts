@@ -10,6 +10,11 @@ export interface GrantInput {
   applicationType: ApplicationType;
   citizenshipMix: CitizenshipMix;
   allFirstTimers: boolean;
+  // Only meaningful when allFirstTimers is false. true = every applicant is a second-timer
+  // (CHG/EHG unavailable — first-timer only — but PHG still applies, no income ceiling).
+  // Left false/undefined = mixed first-timer/second-timer household, which stays an
+  // unsupported hard-stop (Step-Up EHG rules aren't verified yet).
+  allSecondTimers?: boolean;
   avgMonthlyHouseholdIncome: number; // 12-mth avg, assessed ~2 mths before HFE application
   employedContinuously12Months: boolean;
   buyerAges: number[];
@@ -73,17 +78,21 @@ export function computeGrants(input: GrantInput): GrantResult {
     return { ...zero, ineligibilityReasons, warnings };
   }
 
-  if (!input.allFirstTimers) {
+  if (!input.allFirstTimers && !input.allSecondTimers) {
     ineligibilityReasons.push(
       'Second-timer / mixed household — Step-Up & half-grant paths coming. Worth a chat.'
     );
     return { ...zero, ineligibilityReasons, warnings };
   }
 
+  const allSecondTimers = !input.allFirstTimers && input.allSecondTimers === true;
+
   // HDB assesses the 12-month average ~2 months before HFE application; a household that
   // hasn't been continuously employed the full 12 months is the one signal available in
-  // this input for "income may not be a stable, representative average."
-  if (!input.employedContinuously12Months) {
+  // this input for "income may not be a stable, representative average." Only relevant to
+  // first-timers here — PHG (the only grant a pure second-timer household can get) has no
+  // income ceiling, so an unstable income average doesn't change anything for them.
+  if (!allSecondTimers && !input.employedContinuously12Months) {
     warnings.push(
       'HDB assesses your 12-month average income ~2 months before HFE application; irregular income can shift your grant band.'
     );
@@ -92,6 +101,10 @@ export function computeGrants(input: GrantInput): GrantResult {
   const tier = householdTier(input.applicationType);
 
   if (input.flatSource === 'BTO') {
+    if (allSecondTimers) {
+      warnings.push('Second-timers don’t qualify for CPF housing grants (CHG/EHG) on BTO flats.');
+      return { ...zero, ineligibilityReasons, warnings };
+    }
     const ehg = computeEhg(input.applicationType, tier, input);
     return { ehg, chg: 0, phg: 0, total: ehg, ineligibilityReasons, warnings };
   }
@@ -107,46 +120,60 @@ export function computeGrants(input: GrantInput): GrantResult {
   }
 
   let chg = 0;
-  let chgPassed = false;
+  let ehg = 0;
 
-  const chgCeiling =
-    input.applicationType === 'JOINT_SINGLES'
-      ? RATES.grants.chg.incomeCeiling.JOINT_SINGLES
-      : RATES.grants.chg.incomeCeiling[tier];
-  const incomeOk = input.avgMonthlyHouseholdIncome <= chgCeiling;
-  const leaseOk =
-    input.remainingLeaseYears !== undefined &&
-    input.remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
-
-  if (!incomeOk) {
-    ineligibilityReasons.push(
-      `Household income exceeds the CHG ceiling of $${chgCeiling.toLocaleString()}.`
+  if (allSecondTimers) {
+    warnings.push(
+      'CHG and EHG are first-timer-only grants, so they don’t apply here — only PHG can, below.'
     );
-  }
-  if (!leaseOk) {
-    ineligibilityReasons.push(
-      `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
-    );
-  }
+  } else {
+    let chgPassed = false;
 
-  if (incomeOk && leaseOk) {
-    chgPassed = true;
-    const amounts = tier === 'FAMILY' ? RATES.grants.chg.familyAmount : RATES.grants.chg.singleAmount;
-    chg = isBigFlat(input.flatType) ? amounts.bigFlat : amounts.smallFlat;
-    if (input.citizenshipMix === 'SC_SPR') {
-      chg -= RATES.grants.chg.scSprPenalty;
-      warnings.push(
-        `Citizen Top-Up $${RATES.grants.chg.scSprPenalty.toLocaleString()} claimable if SPR spouse becomes SC.`
+    const chgCeiling =
+      input.applicationType === 'JOINT_SINGLES'
+        ? RATES.grants.chg.incomeCeiling.JOINT_SINGLES
+        : RATES.grants.chg.incomeCeiling[tier];
+    const incomeOk = input.avgMonthlyHouseholdIncome <= chgCeiling;
+    const leaseOk =
+      input.remainingLeaseYears !== undefined &&
+      input.remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
+
+    if (!incomeOk) {
+      ineligibilityReasons.push(
+        `Household income exceeds the CHG ceiling of $${chgCeiling.toLocaleString()}.`
       );
     }
-  }
+    if (!leaseOk) {
+      ineligibilityReasons.push(
+        `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
+      );
+    }
 
-  const ehg = chgPassed ? computeEhg(input.applicationType, tier, input) : 0;
+    if (incomeOk && leaseOk) {
+      chgPassed = true;
+      const amounts = tier === 'FAMILY' ? RATES.grants.chg.familyAmount : RATES.grants.chg.singleAmount;
+      chg = isBigFlat(input.flatType) ? amounts.bigFlat : amounts.smallFlat;
+      if (input.citizenshipMix === 'SC_SPR') {
+        chg -= RATES.grants.chg.scSprPenalty;
+        warnings.push(
+          `Citizen Top-Up $${RATES.grants.chg.scSprPenalty.toLocaleString()} claimable if SPR spouse becomes SC.`
+        );
+      }
+    }
+
+    ehg = chgPassed ? computeEhg(input.applicationType, tier, input) : 0;
+  }
 
   let phg = 0;
   const phgAmounts = tier === 'FAMILY' ? RATES.grants.phg.familyAmount : RATES.grants.phg.singleAmount;
   if (input.proximity === 'WITH_PARENTS_OR_CHILD') phg = phgAmounts.withParentsOrChild;
   else if (input.proximity === 'WITHIN_4KM') phg = phgAmounts.within4km;
+
+  if (allSecondTimers && phg > 0) {
+    warnings.push(
+      'PHG is a one-time subsidy — if you or your co-applicant claimed it on an earlier purchase, you won’t be eligible again.'
+    );
+  }
 
   return { ehg, chg, phg, total: chg + ehg + phg, ineligibilityReasons, warnings };
 }

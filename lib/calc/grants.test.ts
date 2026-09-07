@@ -129,6 +129,51 @@ describe('computeGrants — remaining decision-tree branches', () => {
     expect(result.ineligibilityReasons.some((r) => /second-timer/i.test(r))).toBe(true);
   });
 
+  it('pure second-timer RESALE: no CHG/EHG, PHG still applies', () => {
+    const result = computeGrants({ ...case1Input, allFirstTimers: false, allSecondTimers: true });
+    expect(result.chg).toBe(0);
+    expect(result.ehg).toBe(0);
+    expect(result.phg).toBe(20_000); // WITHIN_4KM, FAMILY tier
+    expect(result.total).toBe(20_000);
+    expect(result.ineligibilityReasons).toEqual([]);
+    expect(result.warnings.some((w) => /one-time subsidy/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /first-timer-only grants/i.test(w))).toBe(true);
+  });
+
+  it('pure second-timer RESALE: no PHG when proximity is NONE -> no one-time-subsidy warning either', () => {
+    const result = computeGrants({
+      ...case1Input,
+      allFirstTimers: false,
+      allSecondTimers: true,
+      proximity: 'NONE',
+    });
+    expect(result.total).toBe(0);
+    expect(result.warnings.some((w) => /one-time subsidy/i.test(w))).toBe(false);
+  });
+
+  it('pure second-timer RESALE: high income doesn’t block PHG (no income ceiling)', () => {
+    const result = computeGrants({
+      ...case1Input,
+      allFirstTimers: false,
+      allSecondTimers: true,
+      avgMonthlyHouseholdIncome: 30_000,
+    });
+    expect(result.phg).toBe(20_000);
+    expect(result.ineligibilityReasons).toEqual([]);
+  });
+
+  it('pure second-timer BTO: zero grants, warns instead of erroring', () => {
+    const result = computeGrants({
+      ...case1Input,
+      flatSource: 'BTO',
+      allFirstTimers: false,
+      allSecondTimers: true,
+    });
+    expect(result.total).toBe(0);
+    expect(result.ineligibilityReasons).toEqual([]);
+    expect(result.warnings.some((w) => /BTO flats/i.test(w))).toBe(true);
+  });
+
   it('BTO branch: EHG only, no CHG/PHG even with proximity set', () => {
     const result = computeGrants({
       ...case1Input,
