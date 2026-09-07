@@ -4,7 +4,7 @@
 // Verified against: official HDB EHG table (post-Aug-2024, families), IRAS BSD/ABSD/SSD
 // schedules, MAS/HDB loan rules, as hand-checked in golden-cases.json / goldentests.md.
 export const RATES = {
-  asOfDate: '2026-07-01',
+  asOfDate: '2026-09-07',
 
   bsd: {
     // Residential Buyer's Stamp Duty bands, applied to the higher of price/valuation.
@@ -132,7 +132,10 @@ export const RATES = {
       { maxIncome: 4_500, amount: 2_500 },
     ],
     chg: {
-      incomeCeiling: { FAMILY: 14_000, SINGLE: 7_000, JOINT_SINGLES: 14_000 },
+      // Raised from FAMILY/JOINT_SINGLES $14,000 and SINGLE $7,000, effective 24 Aug 2026
+      // (NDR 2026 announcement; confirmed on hdb.gov.sg). EHG's own $9,000/$4,500 ceiling and
+      // band amounts were NOT changed by this update — don't touch ehgIncomeCeiling/bands above.
+      incomeCeiling: { FAMILY: 16_000, SINGLE: 8_000, JOINT_SINGLES: 16_000 },
       minRemainingLeaseYears: 20,
       // 2R-4R vs 5R/EXEC/3GEN
       familyAmount: { smallFlat: 80_000, bigFlat: 50_000 },
