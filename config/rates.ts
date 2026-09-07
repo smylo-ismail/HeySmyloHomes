@@ -183,9 +183,29 @@ export const RATES = {
     accruedInterestPct: 0.025,
   },
 
-  timelinesWeeks: {
-    hdbResaleBuy: { hfe: 3, otp: 3, hdbAcceptance: 2, completion: 8 },
-    hdbResaleSell: { intentToSellCoolingDays: 7, otp: 3, hdbAcceptance: 2, completion: 8 },
+  // Sourced from HDB's official "Overview of Resale Flat Buying/Selling Process" and BTO
+  // balloting process pages (hdb.gov.sg), corroborated against independent guides, Sep 2026.
+  // Durations are HDB's own typical ranges, not fixed dates — surfaced as such in the UI.
+  timeline: {
+    hdbResaleBuy: {
+      hfeWeeks: 4,
+      otpDays: 21, // legally fixed option period, calendar days incl. weekends/holidays
+      applicationAndValuationWeeks: [1, 2],
+      hdbApprovalWeeks: [4, 8],
+    },
+    hdbResaleSell: {
+      intentToSellCoolingDays: 7,
+      otpDays: 21,
+      applicationAndValuationWeeks: [1, 2],
+      hdbApprovalWeeks: [4, 8],
+      temporaryExtensionOfStayMaxMonths: 3,
+    },
+    hdbBto: {
+      ballotResultWeeks: [2, 3],
+      leaseAgreementWeeks: [2, 4],
+      constructionYears: [3, 5],
+      keyCollectionMonthsAfterBooking: 9, // completed / shorter-wait Plus & Prime flats
+    },
     privateResaleBuy: { ipaMin: 1, ipaMax: 2, otpDays: 14, completionMin: 8, completionMax: 12 },
   },
 } as const;

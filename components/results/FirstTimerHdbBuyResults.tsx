@@ -8,8 +8,10 @@ import { RuledRow } from '@/components/RuledRow';
 import { MicroLabel } from '@/components/MicroLabel';
 import { WarningsPanel } from '@/components/WarningsPanel';
 import { InkButton } from '@/components/InkButton';
+import { Timeline } from '@/components/Timeline';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
+import { getBuyTimeline } from '@/lib/timeline/hdbBuyTimeline';
 
 export function FirstTimerHdbBuyResults({
   input,
@@ -128,6 +130,17 @@ export function FirstTimerHdbBuyResults({
         <div className="mt-4">
           <Figure label="est. cash required" value={totalCashRequired} size="md" />
         </div>
+      </section>
+
+      <section>
+        <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
+        <div className="mt-2">
+          <Timeline stages={getBuyTimeline(input.flatSource)} />
+        </div>
+        <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
+          durations are HDB&apos;s typical ranges, not fixed dates — actual timing depends on your
+          application and the market.
+        </p>
       </section>
 
       <WarningsPanel warnings={allWarnings} />
