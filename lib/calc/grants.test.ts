@@ -91,6 +91,29 @@ describe('computeGrants — boundary sub-tests', () => {
     expect(result.chg > 0).toBe(passes);
   });
 
+  // Raised from $14,000/$7,000 to $16,000/$8,000 effective 24 Aug 2026 (NDR 2026).
+  it.each([
+    [16_000, true],
+    [16_001, false],
+  ])('CHG income ceiling (FAMILY) at income $%i -> passes=%s', (income, passes) => {
+    const result = computeGrants({ ...case1Input, avgMonthlyHouseholdIncome: income });
+    expect(result.chg > 0).toBe(passes);
+  });
+
+  it.each([
+    [8_000, true],
+    [8_001, false],
+  ])('CHG income ceiling (SINGLE) at income $%i -> passes=%s', (income, passes) => {
+    const result = computeGrants({
+      ...case1Input,
+      applicationType: 'SINGLE',
+      citizenshipMix: 'SC_ONLY',
+      buyerAges: [35],
+      avgMonthlyHouseholdIncome: income,
+    });
+    expect(result.chg > 0).toBe(passes);
+  });
+
   it('PHG NONE -> $0 without affecting CHG/EHG', () => {
     const result = computeGrants({ ...case1Input, proximity: 'NONE' });
     expect(result.phg).toBe(0);
@@ -137,7 +160,7 @@ describe('computeGrants — remaining decision-tree branches', () => {
   });
 
   it('RESALE: CHG fails on income -> EHG also blocked even if independently eligible', () => {
-    const result = computeGrants({ ...case1Input, avgMonthlyHouseholdIncome: 14_001 });
+    const result = computeGrants({ ...case1Input, avgMonthlyHouseholdIncome: 16_001 });
     expect(result.chg).toBe(0);
     expect(result.ehg).toBe(0);
     expect(result.ineligibilityReasons.length).toBeGreaterThan(0);
