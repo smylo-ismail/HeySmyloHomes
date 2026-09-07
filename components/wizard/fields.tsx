@@ -28,6 +28,28 @@ export function NumberField({
   );
 }
 
+export function DateField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string | undefined;
+  onChange: (value: string | undefined) => void;
+}) {
+  return (
+    <label className="block">
+      <MicroLabel>{label}</MicroLabel>
+      <input
+        type="date"
+        value={value ?? ''}
+        onChange={(e) => onChange(e.target.value === '' ? undefined : e.target.value)}
+        className="figure mt-1 w-full border-0 border-b border-rule bg-transparent py-2 text-xl outline-none focus:border-accent dark:border-white/10"
+      />
+    </label>
+  );
+}
+
 export function ChoiceField<T extends string>({
   label,
   options,

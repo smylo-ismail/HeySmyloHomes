@@ -14,9 +14,14 @@ export default function Home() {
           Grants, stamp duties, loan affordability, and cash required — worked out the way HDB
           and the banks actually calculate it.
         </p>
-        <Link href="/simulate/first-timer-hdb-buy">
-          <InkButton>start: first-timer HDB buy</InkButton>
-        </Link>
+        <div className="flex flex-wrap gap-3">
+          <Link href="/simulate/first-timer-hdb-buy">
+            <InkButton>start: first-timer HDB buy</InkButton>
+          </Link>
+          <Link href="/simulate/hdb-sell-and-buy">
+            <InkButton variant="secondary">start: HDB sell &amp; buy</InkButton>
+          </Link>
+        </div>
       </div>
       <footer className="mt-16 border-t border-rule pt-4 text-xs text-ink/50 dark:border-white/10 dark:text-dark-ink/50">
         prepared with smylo · whatsapp ↗

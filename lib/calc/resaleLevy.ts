@@ -6,7 +6,10 @@ export type LevyFlatType = keyof typeof RATES.resaleLevy.amountsByFlatType;
 export interface ResaleLevyInput {
   /** Fires only when buying a second subsidised flat. */
   isSecondSubsidisedFlat: boolean;
-  flatTypeBeingBought: LevyFlatType;
+  // The levy is a fixed sum set by the type of the FIRST (sold) flat, not the one being
+  // bought — a common misconception. '3GEN' is accepted since a 3Gen flat can be sold, but
+  // its levy amount isn't verified anywhere yet, so it surfaces a warning instead of a guess.
+  flatTypeSold: LevyFlatType | '3GEN';
   firstFlatSoldDate?: string; // ISO date
 }
 
@@ -32,8 +35,18 @@ export function computeResaleLevy(input: ResaleLevyInput): ResaleLevyResult {
     };
   }
 
+  if (input.flatTypeSold === '3GEN') {
+    return {
+      levy: 0,
+      isLegacyPercentageBased: false,
+      warnings: [
+        'Resale levy amount for a 3Gen flat sold isn’t verified yet — worth a chat with smylo before relying on this figure.',
+      ],
+    };
+  }
+
   return {
-    levy: RATES.resaleLevy.amountsByFlatType[input.flatTypeBeingBought],
+    levy: RATES.resaleLevy.amountsByFlatType[input.flatTypeSold],
     isLegacyPercentageBased: false,
     warnings: [],
   };

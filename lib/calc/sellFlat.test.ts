@@ -5,7 +5,7 @@ const baseInput = {
   salePrice: 500_000,
   outstandingLoanBalance: 100_000,
   cpfRefund: { principal: 150_000, accruedInterestOverride: 20_000 },
-  resaleLevy: { isSecondSubsidisedFlat: false, flatTypeBeingBought: '4R' as const },
+  resaleLevy: { isSecondSubsidisedFlat: false, flatTypeSold: '4R' as const },
 };
 
 describe('computeSellFlat', () => {
@@ -23,7 +23,7 @@ describe('computeSellFlat', () => {
   it('resale levy deducts from proceeds when buying another subsidised flat', () => {
     const result = computeSellFlat({
       ...baseInput,
-      resaleLevy: { isSecondSubsidisedFlat: true, flatTypeBeingBought: '4R' },
+      resaleLevy: { isSecondSubsidisedFlat: true, flatTypeSold: '4R' },
     });
     expect(result.resaleLevy.levy).toBe(40_000);
     expect(result.netCashProceeds).toBeCloseTo(218_700 - 40_000);
@@ -43,7 +43,7 @@ describe('computeSellFlat', () => {
     const result = computeSellFlat({
       ...baseInput,
       salePrice: 200_000,
-      resaleLevy: { isSecondSubsidisedFlat: true, flatTypeBeingBought: '4R' },
+      resaleLevy: { isSecondSubsidisedFlat: true, flatTypeSold: '4R' },
     });
     expect(result.netCashProceeds).toBeLessThan(0);
     expect(result.warnings.some((w) => /need cash to complete the sale/i.test(w))).toBe(true);

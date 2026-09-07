@@ -1,4 +1,4 @@
-import type { TimelineStage } from '@/lib/timeline/hdbBuyTimeline';
+import type { TimelineStage } from '@/lib/timeline/hdbTimelines';
 
 export function Timeline({ stages }: { stages: TimelineStage[] }) {
   return (

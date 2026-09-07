@@ -11,7 +11,7 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getBuyTimeline } from '@/lib/timeline/hdbBuyTimeline';
+import { getBuyTimeline } from '@/lib/timeline/hdbTimelines';
 
 export function FirstTimerHdbBuyResults({
   input,

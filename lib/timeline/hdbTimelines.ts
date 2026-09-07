@@ -90,3 +90,40 @@ export function getBtoBuyTimeline(): TimelineStage[] {
 export function getBuyTimeline(flatSource: FlatSource): TimelineStage[] {
   return flatSource === 'BTO' ? getBtoBuyTimeline() : getResaleBuyTimeline();
 }
+
+export function getResaleSellTimeline(): TimelineStage[] {
+  const t = RATES.timeline.hdbResaleSell;
+  return [
+    {
+      name: 'Register Intent to Sell',
+      duration: `${t.intentToSellCoolingDays}-day cooling-off`,
+      description: 'You can only grant an Option to Purchase to a buyer after this cooling-off period.',
+    },
+    {
+      name: 'Find a buyer & grant OTP',
+      duration: 'varies',
+      description: 'No fixed duration — depends on the market and your asking price.',
+    },
+    {
+      name: 'Buyer exercises Option to Purchase (OTP)',
+      duration: `${t.otpDays} days`,
+      description:
+        'Fixed by law: the option period runs from when you grant the OTP, including weekends and public holidays.',
+    },
+    {
+      name: 'Resale application & valuation',
+      duration: weeksRangeLabel(t.applicationAndValuationWeeks),
+      description: 'You and the buyer submit the resale application; HDB arranges the flat valuation.',
+    },
+    {
+      name: 'HDB approval',
+      duration: weeksRangeLabel(t.hdbApprovalWeeks),
+      description: 'HDB processes the application, including any of the buyer’s grant and loan approvals.',
+    },
+    {
+      name: 'Resale completion',
+      duration: '—',
+      description: 'Final payment received and keys handed over.',
+    },
+  ];
+}
