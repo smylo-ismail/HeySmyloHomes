@@ -8,6 +8,7 @@ import { NumberField, ChoiceField, BoolField, DateField } from './fields';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
 import { HdbSellAndBuyResults } from '@/components/results/HdbSellAndBuyResults';
+import { firstIssueMessage } from '@/lib/formError';
 
 const STORAGE_KEY = 'smylo:draft:hdb-sell-and-buy';
 
@@ -30,8 +31,15 @@ export function HdbSellAndBuyWizard() {
 
   const patch = (fields: HdbSellAndBuyDraft) => setDraft({ ...draft, ...fields });
 
+  // "valuation" defaults to price when left blank — the field's own placeholder promises
+  // this ("same as price if unsure"), so honor it here rather than failing validation.
+  const withDefaults = (): HdbSellAndBuyDraft => ({
+    ...draft,
+    valuation: draft.valuation ?? draft.price,
+  });
+
   if (submitted) {
-    const parsed = hdbSellAndBuySchema.safeParse(draft);
+    const parsed = hdbSellAndBuySchema.safeParse(withDefaults());
     if (parsed.success) {
       return <HdbSellAndBuyResults input={parsed.data} onEdit={() => setSubmitted(false)} />;
     }
@@ -42,9 +50,9 @@ export function HdbSellAndBuyWizard() {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   const trySubmit = () => {
-    const parsed = hdbSellAndBuySchema.safeParse(draft);
+    const parsed = hdbSellAndBuySchema.safeParse(withDefaults());
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Please check your inputs.');
+      setError(firstIssueMessage(parsed.error));
       return;
     }
     setError(null);

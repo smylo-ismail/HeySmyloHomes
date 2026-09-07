@@ -5,6 +5,7 @@ import { useLocalDraft } from '@/lib/hooks/useLocalDraft';
 import { EMPTY_DRAFT, type FirstTimerHdbBuyDraft } from '@/lib/schema/draft';
 import { firstTimerHdbBuySchema } from '@/lib/schema/firstTimerHdbBuy';
 import { NumberField, ChoiceField, BoolField } from './fields';
+import { firstIssueMessage } from '@/lib/formError';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
 import { FirstTimerHdbBuyResults } from '@/components/results/FirstTimerHdbBuyResults';
@@ -45,8 +46,15 @@ export function FirstTimerHdbBuyWizard() {
     );
   }
 
+  // "valuation" defaults to price when left blank — the field's own placeholder promises
+  // this ("same as price if unsure"), so honor it here rather than failing validation.
+  const withDefaults = (): FirstTimerHdbBuyDraft => ({
+    ...draft,
+    valuation: draft.valuation ?? draft.price,
+  });
+
   if (submitted) {
-    const parsed = firstTimerHdbBuySchema.safeParse(draft);
+    const parsed = firstTimerHdbBuySchema.safeParse(withDefaults());
     if (parsed.success) {
       return <FirstTimerHdbBuyResults input={parsed.data} onEdit={() => setSubmitted(false)} />;
     }
@@ -57,9 +65,9 @@ export function FirstTimerHdbBuyWizard() {
   const back = () => setStep((s) => Math.max(s - 1, 0));
 
   const trySubmit = () => {
-    const parsed = firstTimerHdbBuySchema.safeParse(draft);
+    const parsed = firstTimerHdbBuySchema.safeParse(withDefaults());
     if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? 'Please check your inputs.');
+      setError(firstIssueMessage(parsed.error));
       return;
     }
     setError(null);
