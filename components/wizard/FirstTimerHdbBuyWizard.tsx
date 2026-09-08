@@ -5,21 +5,58 @@ import { useLocalDraft } from '@/lib/hooks/useLocalDraft';
 import { EMPTY_DRAFT, type FirstTimerHdbBuyDraft } from '@/lib/schema/draft';
 import { firstTimerHdbBuySchema } from '@/lib/schema/firstTimerHdbBuy';
 import { NumberField, ChoiceField, BoolField } from './fields';
-import { firstIssueMessage } from '@/lib/formError';
+import { ReviewSummary, type ReviewSection } from './ReviewSummary';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
 import { FirstTimerHdbBuyResults } from '@/components/results/FirstTimerHdbBuyResults';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
+import { formatSgd, formatYesNo } from '@/lib/format';
 
 const STORAGE_KEY = 'smylo:draft:first-timer-hdb-buy';
 
 const TOTAL_STEPS = 6;
 
+const APPLICATION_TYPE_OPTIONS = [
+  { value: 'FAMILY' as const, label: 'family' },
+  { value: 'SINGLE' as const, label: 'single' },
+  { value: 'JOINT_SINGLES' as const, label: 'joint singles' },
+  { value: 'NON_RESIDENT_SPOUSE' as const, label: 'non-resident spouse' },
+];
+const CITIZENSHIP_OPTIONS = [
+  { value: 'SC_SC' as const, label: 'SC + SC' },
+  { value: 'SC_SPR' as const, label: 'SC + SPR' },
+  { value: 'SC_ONLY' as const, label: 'SC (single)' },
+];
+const FLAT_SOURCE_OPTIONS = [
+  { value: 'BTO' as const, label: 'BTO' },
+  { value: 'RESALE' as const, label: 'resale' },
+];
+const FLAT_TYPE_OPTIONS = [
+  { value: '2R' as const, label: '2-room' },
+  { value: '3R' as const, label: '3-room' },
+  { value: '4R' as const, label: '4-room' },
+  { value: '5R' as const, label: '5-room' },
+  { value: 'EXEC' as const, label: 'executive' },
+  { value: '3GEN' as const, label: '3gen' },
+];
+const PROXIMITY_OPTIONS = [
+  { value: 'WITH_PARENTS_OR_CHILD' as const, label: 'living with' },
+  { value: 'WITHIN_4KM' as const, label: 'within 4km' },
+  { value: 'NONE' as const, label: 'none' },
+];
+const LOAN_TYPE_OPTIONS = [
+  { value: 'HDB' as const, label: 'HDB loan' },
+  { value: 'BANK' as const, label: 'bank loan' },
+];
+
+function optionLabel<T extends string>(options: { value: T; label: string }[], value: T | undefined): string {
+  return options.find((o) => o.value === value)?.label ?? '—';
+}
+
 export function FirstTimerHdbBuyWizard() {
   const [draft, setDraft] = useLocalDraft<FirstTimerHdbBuyDraft>(STORAGE_KEY, EMPTY_DRAFT);
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const patch = (fields: FirstTimerHdbBuyDraft) => setDraft({ ...draft, ...fields });
 
@@ -53,26 +90,98 @@ export function FirstTimerHdbBuyWizard() {
     valuation: draft.valuation ?? draft.price,
   });
 
-  if (submitted) {
-    const parsed = firstTimerHdbBuySchema.safeParse(withDefaults());
-    if (parsed.success) {
-      return <FirstTimerHdbBuyResults input={parsed.data} onEdit={() => setSubmitted(false)} />;
-    }
-    setSubmitted(false);
+  const reviewParsed = firstTimerHdbBuySchema.safeParse(withDefaults());
+
+  if (submitted && reviewParsed.success) {
+    return <FirstTimerHdbBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
   }
 
   const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
   const back = () => setStep((s) => Math.max(s - 1, 0));
-
   const trySubmit = () => {
-    const parsed = firstTimerHdbBuySchema.safeParse(withDefaults());
-    if (!parsed.success) {
-      setError(firstIssueMessage(parsed.error));
-      return;
-    }
-    setError(null);
-    setSubmitted(true);
+    if (reviewParsed.success) setSubmitted(true);
   };
+
+  const invalidFields: Record<string, string> = {};
+  if (!reviewParsed.success) {
+    for (const issue of reviewParsed.error.issues) {
+      const key = issue.path.join('.');
+      if (!(key in invalidFields)) invalidFields[key] = issue.message;
+    }
+  }
+
+  const sections: ReviewSection[] = [
+    {
+      stepIndex: 0,
+      title: "who's buying",
+      fields: [
+        { fieldKey: 'applicationType', label: 'application type', value: optionLabel(APPLICATION_TYPE_OPTIONS, draft.applicationType) },
+        { fieldKey: 'citizenshipMix', label: 'citizenship', value: optionLabel(CITIZENSHIP_OPTIONS, draft.citizenshipMix) },
+        { fieldKey: 'buyerAges', label: 'buyer ages', value: draft.buyerAges?.length ? draft.buyerAges.join(', ') : '—' },
+      ],
+    },
+    {
+      stepIndex: 1,
+      title: 'household income',
+      fields: [
+        {
+          fieldKey: 'avgMonthlyHouseholdIncome',
+          label: 'avg. monthly household income',
+          value: draft.avgMonthlyHouseholdIncome !== undefined ? formatSgd(draft.avgMonthlyHouseholdIncome) : '—',
+        },
+        { fieldKey: 'employedContinuously12Months', label: 'continuously employed 12mo?', value: formatYesNo(draft.employedContinuously12Months) },
+      ],
+    },
+    {
+      stepIndex: 2,
+      title: 'the flat',
+      fields: [
+        { fieldKey: 'flatSource', label: 'source', value: optionLabel(FLAT_SOURCE_OPTIONS, draft.flatSource) },
+        { fieldKey: 'flatType', label: 'flat type', value: optionLabel(FLAT_TYPE_OPTIONS, draft.flatType) },
+        { fieldKey: 'price', label: 'price', value: draft.price !== undefined ? formatSgd(draft.price) : '—' },
+        { fieldKey: 'valuation', label: 'valuation', value: draft.valuation !== undefined ? formatSgd(draft.valuation) : 'same as price' },
+        ...(draft.flatSource === 'RESALE'
+          ? [
+              {
+                fieldKey: 'remainingLeaseYears',
+                label: 'remaining lease',
+                value: draft.remainingLeaseYears !== undefined ? `${draft.remainingLeaseYears} years` : '—',
+              },
+              { fieldKey: 'proximity', label: 'proximity', value: optionLabel(PROXIMITY_OPTIONS, draft.proximity) },
+            ]
+          : []),
+      ],
+    },
+    {
+      stepIndex: 3,
+      title: 'property history',
+      fields: [
+        {
+          fieldKey: 'ownsOrDisposedPrivateWithin30Months',
+          label: 'owned/disposed private property within 30mo?',
+          value: formatYesNo(draft.ownsOrDisposedPrivateWithin30Months),
+        },
+      ],
+    },
+    {
+      stepIndex: 4,
+      title: 'the loan',
+      fields: [
+        { fieldKey: 'loanType', label: 'loan type', value: optionLabel(LOAN_TYPE_OPTIONS, draft.loanType) },
+        { fieldKey: 'tenureYears', label: 'tenure', value: draft.tenureYears !== undefined ? `${draft.tenureYears} years` : '—' },
+        { fieldKey: 'cpfOaBalance', label: 'CPF OA balance', value: draft.cpfOaBalance !== undefined ? formatSgd(draft.cpfOaBalance) : '—' },
+        ...(draft.loanType === 'BANK'
+          ? [
+              {
+                fieldKey: 'existingMonthlyDebt',
+                label: 'existing monthly debt',
+                value: draft.existingMonthlyDebt !== undefined ? formatSgd(draft.existingMonthlyDebt) : 'none',
+              },
+            ]
+          : []),
+      ],
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
@@ -88,22 +197,13 @@ export function FirstTimerHdbBuyWizard() {
               label="application type"
               value={draft.applicationType}
               onChange={(v) => patch({ applicationType: v })}
-              options={[
-                { value: 'FAMILY', label: 'family' },
-                { value: 'SINGLE', label: 'single' },
-                { value: 'JOINT_SINGLES', label: 'joint singles' },
-                { value: 'NON_RESIDENT_SPOUSE', label: 'non-resident spouse' },
-              ]}
+              options={APPLICATION_TYPE_OPTIONS}
             />
             <ChoiceField
               label="citizenship"
               value={draft.citizenshipMix}
               onChange={(v) => patch({ citizenshipMix: v })}
-              options={[
-                { value: 'SC_SC', label: 'SC + SC' },
-                { value: 'SC_SPR', label: 'SC + SPR' },
-                { value: 'SC_ONLY', label: 'SC (single)' },
-              ]}
+              options={CITIZENSHIP_OPTIONS}
             />
             <BoolField
               label="are all applicants first-timers?"
@@ -147,28 +247,8 @@ export function FirstTimerHdbBuyWizard() {
         {step === 2 && (
           <>
             <h2 className="font-display text-xl">the flat</h2>
-            <ChoiceField
-              label="source"
-              value={draft.flatSource}
-              onChange={(v) => patch({ flatSource: v })}
-              options={[
-                { value: 'BTO', label: 'BTO' },
-                { value: 'RESALE', label: 'resale' },
-              ]}
-            />
-            <ChoiceField
-              label="flat type"
-              value={draft.flatType}
-              onChange={(v) => patch({ flatType: v })}
-              options={[
-                { value: '2R', label: '2-room' },
-                { value: '3R', label: '3-room' },
-                { value: '4R', label: '4-room' },
-                { value: '5R', label: '5-room' },
-                { value: 'EXEC', label: 'executive' },
-                { value: '3GEN', label: '3gen' },
-              ]}
-            />
+            <ChoiceField label="source" value={draft.flatSource} onChange={(v) => patch({ flatSource: v })} options={FLAT_SOURCE_OPTIONS} />
+            <ChoiceField label="flat type" value={draft.flatType} onChange={(v) => patch({ flatType: v })} options={FLAT_TYPE_OPTIONS} />
             <NumberField label="price" value={draft.price} onChange={(v) => patch({ price: v })} placeholder="600000" />
             <NumberField
               label="valuation"
@@ -188,11 +268,7 @@ export function FirstTimerHdbBuyWizard() {
                   label="proximity to parents/children"
                   value={draft.proximity}
                   onChange={(v) => patch({ proximity: v })}
-                  options={[
-                    { value: 'WITH_PARENTS_OR_CHILD', label: 'living with' },
-                    { value: 'WITHIN_4KM', label: 'within 4km' },
-                    { value: 'NONE', label: 'none' },
-                  ]}
+                  options={PROXIMITY_OPTIONS}
                 />
               </>
             )}
@@ -213,15 +289,7 @@ export function FirstTimerHdbBuyWizard() {
         {step === 4 && (
           <>
             <h2 className="font-display text-xl">the loan</h2>
-            <ChoiceField
-              label="loan type"
-              value={draft.loanType}
-              onChange={(v) => patch({ loanType: v })}
-              options={[
-                { value: 'HDB', label: 'HDB loan' },
-                { value: 'BANK', label: 'bank loan' },
-              ]}
-            />
+            <ChoiceField label="loan type" value={draft.loanType} onChange={(v) => patch({ loanType: v })} options={LOAN_TYPE_OPTIONS} />
             <NumberField label="tenure (years)" value={draft.tenureYears} onChange={(v) => patch({ tenureYears: v })} placeholder="25" />
             <NumberField label="CPF OA balance" value={draft.cpfOaBalance} onChange={(v) => patch({ cpfOaBalance: v })} placeholder="60000" />
             {draft.loanType === 'BANK' && (
@@ -239,10 +307,9 @@ export function FirstTimerHdbBuyWizard() {
           <>
             <h2 className="font-display text-xl">review</h2>
             <p className="text-sm text-ink/70 dark:text-dark-ink/70">
-              Ready to see grants, duties, loan affordability, and cash required — or go back to
-              change anything.
+              Check everything below — click &quot;edit&quot; on any section to change it.
             </p>
-            {error && <p className="text-sm text-accent">{error}</p>}
+            <ReviewSummary sections={sections} invalidFields={invalidFields} onJump={setStep} />
           </>
         )}
       </div>
@@ -254,7 +321,9 @@ export function FirstTimerHdbBuyWizard() {
         {step < TOTAL_STEPS - 1 ? (
           <InkButton onClick={next}>next</InkButton>
         ) : (
-          <InkButton onClick={trySubmit}>see results</InkButton>
+          <InkButton onClick={trySubmit} disabled={!reviewParsed.success}>
+            see results
+          </InkButton>
         )}
       </div>
     </div>
