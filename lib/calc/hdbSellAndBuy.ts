@@ -128,8 +128,6 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     grantsTotal: grants.total,
     downpayment: loan.downpayment,
     stampDuty: bsd + absd.absd,
-    remainingLeaseYears: input.remainingLeaseYears,
-    youngestBuyerAge: input.buyerAges.length ? Math.min(...input.buyerAges) : undefined,
   });
 
   const fees = computeBuyFees({ kind: 'HDB', path: input.flatSource, price: input.price });
@@ -153,7 +151,7 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
 
   const cashflow = computeCashflow(events, { contraFacilityAvailable: input.flatSource === 'BTO' });
 
-  warnings.push(...sell.warnings, ...grants.warnings, ...loan.warnings, ...cpf.warnings, ...cashflow.warnings);
+  warnings.push(...sell.warnings, ...grants.warnings, ...loan.warnings, ...cashflow.warnings);
 
   const totalCashRequired = cashflow.bridgingNeeded ? cashflow.bridgingAmount : 0;
 

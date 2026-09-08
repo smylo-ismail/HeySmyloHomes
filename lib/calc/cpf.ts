@@ -35,33 +35,21 @@ export interface CpfBuySideInput {
   grantsTotal: number;
   downpayment: number;
   stampDuty: number;
-  remainingLeaseYears?: number;
-  youngestBuyerAge?: number;
 }
 
 export interface CpfBuySideResult {
   cpfAvailable: number;
   cpfNeeded: number;
   cashTopUp: number;
-  warnings: string[];
 }
 
-/** Buy-side CPF usage: OA (own balance + grants) applied to downpayment + stamp duties. */
+/** Buy-side CPF usage: OA (own balance + grants) applied to downpayment + stamp duties.
+ *  The lease-to-95 pro-ration risk is grants.ts's single authoritative warning — not
+ *  duplicated here, since both engines are always composed together by the same caller. */
 export function computeCpfBuySide(input: CpfBuySideInput): CpfBuySideResult {
-  const warnings: string[] = [];
-  if (
-    input.remainingLeaseYears !== undefined &&
-    input.youngestBuyerAge !== undefined &&
-    input.remainingLeaseYears + input.youngestBuyerAge < 95
-  ) {
-    warnings.push(
-      'Lease does not cover the youngest buyer to age 95 — CPF usage may be pro-rated (not modeled here).'
-    );
-  }
-
   const cpfAvailable = input.oaBalance + input.grantsTotal;
   const cpfNeeded = input.downpayment + input.stampDuty;
   const cashTopUp = Math.max(cpfNeeded - cpfAvailable, 0);
 
-  return { cpfAvailable, cpfNeeded, cashTopUp, warnings };
+  return { cpfAvailable, cpfNeeded, cashTopUp };
 }

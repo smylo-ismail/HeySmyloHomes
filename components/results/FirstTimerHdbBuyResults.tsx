@@ -23,7 +23,7 @@ export function FirstTimerHdbBuyResults({
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
 
-  const allWarnings = [...grants.warnings, ...loan.warnings, ...cpf.warnings];
+  const allWarnings = [...grants.warnings, ...loan.warnings];
 
   if (grants.ineligibilityReasons.length > 0 && grants.total === 0) {
     // still show duty/loan figures below — grant ineligibility doesn't block the rest of the calc

@@ -111,12 +111,20 @@ export function computeGrants(input: GrantInput): GrantResult {
 
   // RESALE branch — order matters: CHG gate, then EHG (only if CHG passed), then PHG
   // (independent of CHG/EHG, no income ceiling).
-  if (
-    input.remainingLeaseYears !== undefined &&
-    input.buyerAges.length > 0 &&
-    input.remainingLeaseYears + Math.min(...input.buyerAges) < 95
-  ) {
-    warnings.push('Grants and CPF usage may be pro-rated; flag this flat to smylo.');
+  //
+  // The 95-year-old rule is a much higher bar than CHG's own 20-year minimum below (e.g. a
+  // 30-year-old buyer needs 65+ years remaining, not just 20+), so satisfying one says nothing
+  // about the other — both get checked independently. This is the single, authoritative warning
+  // for this risk; cpf.ts deliberately doesn't duplicate it.
+  const youngestBuyerAge = input.buyerAges.length > 0 ? Math.min(...input.buyerAges) : undefined;
+  if (input.remainingLeaseYears === undefined) {
+    warnings.push(
+      `Remaining lease years wasn’t provided — CHG assumes it’s at least ${RATES.grants.chg.minRemainingLeaseYears} years, and if the actual lease doesn’t cover the youngest buyer to age 95, loan and grants may be pro-rated too. Confirm your lease length for an accurate figure.`
+    );
+  } else if (youngestBuyerAge !== undefined && input.remainingLeaseYears + youngestBuyerAge < 95) {
+    warnings.push(
+      'Remaining lease doesn’t cover the youngest buyer to age 95 — loan, grants, and CPF usage may be pro-rated. Worth a chat with smylo.'
+    );
   }
 
   let chg = 0;
@@ -151,11 +159,8 @@ export function computeGrants(input: GrantInput): GrantResult {
         `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
       );
     }
-    if (!leaseProvided) {
-      warnings.push(
-        `Remaining lease years wasn’t provided — CHG assumes it’s at least ${RATES.grants.chg.minRemainingLeaseYears} years. Please confirm.`
-      );
-    }
+    // The blank-lease warning (covering this same 20-year assumption) is already pushed above,
+    // alongside the age-95 pro-ration risk — kept in one place rather than split across two.
 
     if (incomeOk && leaseOk) {
       chgPassed = true;
