@@ -4,13 +4,13 @@ import { useState } from 'react';
 import { useLocalDraft } from '@/lib/hooks/useLocalDraft';
 import { EMPTY_DRAFT, type FirstTimerHdbBuyDraft } from '@/lib/schema/draft';
 import { firstTimerHdbBuySchema } from '@/lib/schema/firstTimerHdbBuy';
-import { NumberField, ChoiceField, BoolField } from './fields';
+import { NumberField, ChoiceField, BoolField, DateField } from './fields';
 import { ReviewSummary, type ReviewSection } from './ReviewSummary';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
 import { FirstTimerHdbBuyResults } from '@/components/results/FirstTimerHdbBuyResults';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { formatSgd, formatYesNo } from '@/lib/format';
+import { formatSgd, formatYesNo, formatDateReadable } from '@/lib/format';
 
 const STORAGE_KEY = 'smylo:draft:first-timer-hdb-buy';
 
@@ -145,11 +145,16 @@ export function FirstTimerHdbBuyWizard() {
               {
                 fieldKey: 'remainingLeaseYears',
                 label: 'remaining lease',
-                value: draft.remainingLeaseYears !== undefined ? `${draft.remainingLeaseYears} years` : '—',
+                value: draft.remainingLeaseYears !== undefined ? `${draft.remainingLeaseYears} years` : 'not provided (assumes ≥20 yrs)',
               },
               { fieldKey: 'proximity', label: 'proximity', value: optionLabel(PROXIMITY_OPTIONS, draft.proximity) },
             ]
           : []),
+        {
+          fieldKey: 'timelineAnchorDate',
+          label: draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
+          value: formatDateReadable(draft.timelineAnchorDate),
+        },
       ],
     },
     {
@@ -183,11 +188,28 @@ export function FirstTimerHdbBuyWizard() {
     },
   ];
 
+  const startOver = () => {
+    if (window.confirm('Clear everything you’ve entered and start over?')) {
+      setDraft(EMPTY_DRAFT);
+      setStep(0);
+      setSubmitted(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
-      <MicroLabel>
-        step {step + 1} of {TOTAL_STEPS}
-      </MicroLabel>
+      <div className="flex items-center justify-between">
+        <MicroLabel>
+          step {step + 1} of {TOTAL_STEPS}
+        </MicroLabel>
+        <button
+          type="button"
+          onClick={startOver}
+          className="text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink"
+        >
+          start over
+        </button>
+      </div>
 
       <div className="mt-6 space-y-6">
         {step === 0 && (
@@ -259,10 +281,10 @@ export function FirstTimerHdbBuyWizard() {
             {draft.flatSource === 'RESALE' && (
               <>
                 <NumberField
-                  label="remaining lease (years)"
+                  label="remaining lease (years) — optional"
                   value={draft.remainingLeaseYears}
                   onChange={(v) => patch({ remainingLeaseYears: v })}
-                  placeholder="70"
+                  placeholder="not sure? leave blank, we'll assume 20+ years"
                 />
                 <ChoiceField
                   label="proximity to parents/children"
@@ -272,6 +294,11 @@ export function FirstTimerHdbBuyWizard() {
                 />
               </>
             )}
+            <DateField
+              label={draft.flatSource === 'BTO' ? 'application date — optional' : 'OTP granted date — optional'}
+              value={draft.timelineAnchorDate}
+              onChange={(v) => patch({ timelineAnchorDate: v })}
+            />
           </>
         )}
 

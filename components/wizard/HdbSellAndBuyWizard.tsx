@@ -105,9 +105,9 @@ export function HdbSellAndBuyWizard() {
         },
         { fieldKey: 'cpfUsageYears', label: 'years since CPF used', value: draft.cpfUsageYears !== undefined ? `${draft.cpfUsageYears}` : '0' },
         {
-          fieldKey: 'expectedSellCompletionDate',
-          label: 'expected sale completion',
-          value: formatDateReadable(draft.expectedSellCompletionDate),
+          fieldKey: 'sellOtpGrantedDate',
+          label: 'OTP granted to buyer',
+          value: formatDateReadable(draft.sellOtpGrantedDate),
         },
       ],
     },
@@ -145,15 +145,15 @@ export function HdbSellAndBuyWizard() {
               {
                 fieldKey: 'remainingLeaseYears',
                 label: 'remaining lease',
-                value: draft.remainingLeaseYears !== undefined ? `${draft.remainingLeaseYears} years` : '—',
+                value: draft.remainingLeaseYears !== undefined ? `${draft.remainingLeaseYears} years` : 'not provided (assumes ≥20 yrs)',
               },
               { fieldKey: 'proximity', label: 'proximity', value: optionLabel(PROXIMITY_OPTIONS, draft.proximity) },
             ]
           : []),
         {
-          fieldKey: 'expectedBuyCompletionDate',
-          label: 'expected purchase completion',
-          value: formatDateReadable(draft.expectedBuyCompletionDate),
+          fieldKey: 'buyAnchorDate',
+          label: draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
+          value: formatDateReadable(draft.buyAnchorDate),
         },
       ],
     },
@@ -192,11 +192,28 @@ export function HdbSellAndBuyWizard() {
     },
   ];
 
+  const startOver = () => {
+    if (window.confirm('Clear everything you’ve entered and start over?')) {
+      setDraft(EMPTY_SELL_AND_BUY_DRAFT);
+      setStep(0);
+      setSubmitted(false);
+    }
+  };
+
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
-      <MicroLabel>
-        step {step + 1} of {TOTAL_STEPS}
-      </MicroLabel>
+      <div className="flex items-center justify-between">
+        <MicroLabel>
+          step {step + 1} of {TOTAL_STEPS}
+        </MicroLabel>
+        <button
+          type="button"
+          onClick={startOver}
+          className="text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink"
+        >
+          start over
+        </button>
+      </div>
 
       <div className="mt-6 space-y-6">
         {step === 0 && (
@@ -233,9 +250,9 @@ export function HdbSellAndBuyWizard() {
               placeholder="5"
             />
             <DateField
-              label="expected sale completion date"
-              value={draft.expectedSellCompletionDate}
-              onChange={(v) => patch({ expectedSellCompletionDate: v })}
+              label="OTP granted to buyer (or expected)"
+              value={draft.sellOtpGrantedDate}
+              onChange={(v) => patch({ sellOtpGrantedDate: v })}
             />
           </>
         )}
@@ -304,10 +321,10 @@ export function HdbSellAndBuyWizard() {
             {draft.flatSource === 'RESALE' && (
               <>
                 <NumberField
-                  label="remaining lease (years)"
+                  label="remaining lease (years) — optional"
                   value={draft.remainingLeaseYears}
                   onChange={(v) => patch({ remainingLeaseYears: v })}
-                  placeholder="70"
+                  placeholder="not sure? leave blank, we'll assume 20+ years"
                 />
                 <ChoiceField
                   label="proximity to parents/children"
@@ -318,9 +335,9 @@ export function HdbSellAndBuyWizard() {
               </>
             )}
             <DateField
-              label="expected purchase completion date"
-              value={draft.expectedBuyCompletionDate}
-              onChange={(v) => patch({ expectedBuyCompletionDate: v })}
+              label={draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date (or expected)'}
+              value={draft.buyAnchorDate}
+              onChange={(v) => patch({ buyAnchorDate: v })}
             />
           </>
         )}

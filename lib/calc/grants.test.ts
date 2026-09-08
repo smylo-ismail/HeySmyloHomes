@@ -91,6 +91,15 @@ describe('computeGrants — boundary sub-tests', () => {
     expect(result.chg > 0).toBe(passes);
   });
 
+  it('remainingLeaseYears omitted: CHG assumes the 20-year minimum is met, with a warning', () => {
+    const withoutLease: GrantInput = { ...case1Input };
+    delete withoutLease.remainingLeaseYears;
+    const result = computeGrants(withoutLease);
+    expect(result.chg).toBeGreaterThan(0);
+    expect(result.ineligibilityReasons).toEqual([]);
+    expect(result.warnings.some((w) => /wasn.t provided/i.test(w))).toBe(true);
+  });
+
   // Raised from $14,000/$7,000 to $16,000/$8,000 effective 24 Aug 2026 (NDR 2026).
   it.each([
     [16_000, true],

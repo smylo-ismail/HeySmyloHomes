@@ -7,6 +7,7 @@ import { computeLoan, type LoanResult } from './loan';
 import { computeCpfBuySide, type CpfBuySideResult } from './cpf';
 import { computeBuyFees, type BuyFeesResult } from './fees';
 import { computeCashflow, type CashflowEvent, type CashflowResult } from './cashflow';
+import { estimateBuyCompletionDate, estimateSellCompletionDate } from '@/lib/timeline/hdbTimelines';
 
 export interface HdbSellAndBuyResult {
   sell: SellFlatResult;
@@ -19,6 +20,9 @@ export interface HdbSellAndBuyResult {
   cashflow: CashflowResult;
   /** Cash needed beyond what sale proceeds + CPF already cover — 0 if proceeds fully fund it. */
   totalCashRequired: number;
+  /** ISO dates estimated from each leg's OTP/application anchor — see hdbTimelines.ts. */
+  estimatedSellCompletionDate: string;
+  estimatedBuyCompletionDate: string;
   warnings: string[];
 }
 
@@ -69,11 +73,18 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
 
   const bsd = computeBsd(input.price, input.valuation);
 
+  // Neither leg's completion date is asked directly — both are estimated forward from the one
+  // concrete, plannable date each side actually has: when an OTP was/will be granted (or, for
+  // a BTO purchase, the application date). See lib/timeline/hdbTimelines.ts for the same math
+  // driving the process-timeline display.
+  const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate);
+  const estimatedBuyCompletionDate = estimateBuyCompletionDate(input.flatSource, input.buyAnchorDate);
+
   // HDB doesn't allow owning two HDB flats concurrently, so the sale should complete on or
   // before the purchase. If the wizard's dates say otherwise, this couple would count as
   // owning 2 residential properties at the point of purchase — flag it and price it correctly
   // rather than silently assuming the (not actually available) 1-property rate.
-  const sellsBeforeOrOnBuy = input.expectedSellCompletionDate <= input.expectedBuyCompletionDate;
+  const sellsBeforeOrOnBuy = estimatedSellCompletionDate <= estimatedBuyCompletionDate;
   if (!sellsBeforeOrOnBuy) {
     warnings.push(
       'HDB doesn’t allow owning two HDB flats at once — buying before your sale completes isn’t normally possible without a special arrangement. Worth a chat with smylo.'
@@ -125,14 +136,14 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
 
   const events: CashflowEvent[] = [
     {
-      date: input.expectedSellCompletionDate,
+      date: estimatedSellCompletionDate,
       label: 'Sale completion — net proceeds',
       cash: sell.netCashProceeds,
       cpf: sell.cpfRefund.totalRefund,
       direction: 'IN',
     },
     {
-      date: input.expectedBuyCompletionDate,
+      date: estimatedBuyCompletionDate,
       label: 'Purchase completion — downpayment, duties & fees',
       cash: -(cpf.cashTopUp + fees.totalUpfrontCash),
       cpf: -cpf.cpfNeeded,
@@ -146,5 +157,18 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
 
   const totalCashRequired = cashflow.bridgingNeeded ? cashflow.bridgingAmount : 0;
 
-  return { sell, grants, bsd, absd, loan, cpf, fees, cashflow, totalCashRequired, warnings };
+  return {
+    sell,
+    grants,
+    bsd,
+    absd,
+    loan,
+    cpf,
+    fees,
+    cashflow,
+    totalCashRequired,
+    estimatedSellCompletionDate,
+    estimatedBuyCompletionDate,
+    warnings,
+  };
 }

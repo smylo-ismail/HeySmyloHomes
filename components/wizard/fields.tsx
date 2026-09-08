@@ -2,6 +2,15 @@
 
 import { MicroLabel } from '@/components/MicroLabel';
 
+// Blocked outright: HTML number inputs otherwise accept 'e'/'E' (scientific notation), '+',
+// '-', and '.' — none of which any field in this app needs (ages, prices, years are all
+// non-negative whole numbers). Digits only, enforced at the keystroke, not just on submit.
+const BLOCKED_NUMBER_KEYS = new Set(['e', 'E', '+', '-', '.']);
+
+function isNonNegativeInteger(n: number): boolean {
+  return Number.isFinite(n) && Number.isInteger(n) && n >= 0;
+}
+
 export function NumberField({
   label,
   value,
@@ -18,10 +27,25 @@ export function NumberField({
       <MicroLabel>{label}</MicroLabel>
       <input
         type="number"
-        inputMode="decimal"
+        inputMode="numeric"
+        min={0}
+        step={1}
         value={value ?? ''}
         placeholder={placeholder}
-        onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
+        onKeyDown={(e) => {
+          if (BLOCKED_NUMBER_KEYS.has(e.key)) e.preventDefault();
+        }}
+        onPaste={(e) => {
+          if (!/^\d+$/.test(e.clipboardData.getData('text'))) e.preventDefault();
+        }}
+        onChange={(e) => {
+          if (e.target.value === '') {
+            onChange(undefined);
+            return;
+          }
+          const parsed = Number(e.target.value);
+          onChange(isNonNegativeInteger(parsed) ? parsed : undefined);
+        }}
         className="figure mt-1 w-full border-0 border-b border-rule bg-transparent py-2 text-xl outline-none focus:border-accent dark:border-white/10"
       />
     </label>

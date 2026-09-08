@@ -134,18 +134,26 @@ export function computeGrants(input: GrantInput): GrantResult {
         ? RATES.grants.chg.incomeCeiling.JOINT_SINGLES
         : RATES.grants.chg.incomeCeiling[tier];
     const incomeOk = input.avgMonthlyHouseholdIncome <= chgCeiling;
-    const leaseOk =
-      input.remainingLeaseYears !== undefined &&
-      input.remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
+    // Not everyone has their lease's exact remaining years on hand, so it's optional — when
+    // left blank, assume the 20-year minimum is met rather than blocking CHG outright, but
+    // say so clearly since it's a real assumption, not a verified fact.
+    const { remainingLeaseYears } = input;
+    const leaseProvided = remainingLeaseYears !== undefined;
+    const leaseOk = !leaseProvided || remainingLeaseYears >= RATES.grants.chg.minRemainingLeaseYears;
 
     if (!incomeOk) {
       ineligibilityReasons.push(
         `Household income exceeds the CHG ceiling of $${chgCeiling.toLocaleString()}.`
       );
     }
-    if (!leaseOk) {
+    if (leaseProvided && !leaseOk) {
       ineligibilityReasons.push(
         `Remaining lease must be at least ${RATES.grants.chg.minRemainingLeaseYears} years for CHG.`
+      );
+    }
+    if (!leaseProvided) {
+      warnings.push(
+        `Remaining lease years wasn’t provided — CHG assumes it’s at least ${RATES.grants.chg.minRemainingLeaseYears} years. Please confirm.`
       );
     }
 
