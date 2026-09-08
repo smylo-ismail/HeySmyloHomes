@@ -2,20 +2,27 @@
 
 import { useState } from 'react';
 import { useLocalDraft } from '@/lib/hooks/useLocalDraft';
-import { EMPTY_DRAFT, type FirstTimerHdbBuyDraft } from '@/lib/schema/draft';
-import { firstTimerHdbBuySchema } from '@/lib/schema/firstTimerHdbBuy';
-import { NumberField, ChoiceField, BoolField } from './fields';
+import { EMPTY_SELL_AND_BUY_DRAFT, type HdbSellAndBuyDraft } from '@/lib/schema/hdbSellAndBuyDraft';
+import { hdbSellAndBuySchema } from '@/lib/schema/hdbSellAndBuy';
+import { NumberField, ChoiceField, BoolField, DateField } from './fields';
 import { ReviewSummary, type ReviewSection } from './ReviewSummary';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
-import { FirstTimerHdbBuyResults } from '@/components/results/FirstTimerHdbBuyResults';
-import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { formatSgd, formatYesNo } from '@/lib/format';
+import { HdbSellAndBuyResults } from '@/components/results/HdbSellAndBuyResults';
+import { formatSgd, formatYesNo, formatDateReadable } from '@/lib/format';
 
-const STORAGE_KEY = 'smylo:draft:first-timer-hdb-buy';
+const STORAGE_KEY = 'smylo:draft:hdb-sell-and-buy';
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 7;
 
+const FLAT_TYPE_OPTIONS = [
+  { value: '2R' as const, label: '2-room' },
+  { value: '3R' as const, label: '3-room' },
+  { value: '4R' as const, label: '4-room' },
+  { value: '5R' as const, label: '5-room' },
+  { value: 'EXEC' as const, label: 'executive' },
+  { value: '3GEN' as const, label: '3gen' },
+];
 const APPLICATION_TYPE_OPTIONS = [
   { value: 'FAMILY' as const, label: 'family' },
   { value: 'SINGLE' as const, label: 'single' },
@@ -31,14 +38,6 @@ const FLAT_SOURCE_OPTIONS = [
   { value: 'BTO' as const, label: 'BTO' },
   { value: 'RESALE' as const, label: 'resale' },
 ];
-const FLAT_TYPE_OPTIONS = [
-  { value: '2R' as const, label: '2-room' },
-  { value: '3R' as const, label: '3-room' },
-  { value: '4R' as const, label: '4-room' },
-  { value: '5R' as const, label: '5-room' },
-  { value: 'EXEC' as const, label: 'executive' },
-  { value: '3GEN' as const, label: '3gen' },
-];
 const PROXIMITY_OPTIONS = [
   { value: 'WITH_PARENTS_OR_CHILD' as const, label: 'living with' },
   { value: 'WITHIN_4KM' as const, label: 'within 4km' },
@@ -53,47 +52,24 @@ function optionLabel<T extends string>(options: { value: T; label: string }[], v
   return options.find((o) => o.value === value)?.label ?? '—';
 }
 
-export function FirstTimerHdbBuyWizard() {
-  const [draft, setDraft] = useLocalDraft<FirstTimerHdbBuyDraft>(STORAGE_KEY, EMPTY_DRAFT);
+export function HdbSellAndBuyWizard() {
+  const [draft, setDraft] = useLocalDraft<HdbSellAndBuyDraft>(STORAGE_KEY, EMPTY_SELL_AND_BUY_DRAFT);
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
 
-  const patch = (fields: FirstTimerHdbBuyDraft) => setDraft({ ...draft, ...fields });
-
-  if (draft.allFirstTimers === false) {
-    return (
-      <div className="mx-auto max-w-lg px-4 py-12 space-y-4">
-        <MicroLabel>second-timer / mixed household</MicroLabel>
-        <p className="text-lg font-display">
-          Step-Up &amp; half-grant paths are coming soon — worth a chat with smylo in the meantime.
-        </p>
-        <div className="flex gap-3">
-          <InkButton variant="secondary" onClick={() => patch({ allFirstTimers: true })}>
-            back
-          </InkButton>
-          <a
-            href={buildAnonymousDiscussUrl("i'm a second-timer / mixed household buyer")}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <InkButton>discuss this with smylo</InkButton>
-          </a>
-        </div>
-      </div>
-    );
-  }
+  const patch = (fields: HdbSellAndBuyDraft) => setDraft({ ...draft, ...fields });
 
   // "valuation" defaults to price when left blank — the field's own placeholder promises
   // this ("same as price if unsure"), so honor it here rather than failing validation.
-  const withDefaults = (): FirstTimerHdbBuyDraft => ({
+  const withDefaults = (): HdbSellAndBuyDraft => ({
     ...draft,
     valuation: draft.valuation ?? draft.price,
   });
 
-  const reviewParsed = firstTimerHdbBuySchema.safeParse(withDefaults());
+  const reviewParsed = hdbSellAndBuySchema.safeParse(withDefaults());
 
   if (submitted && reviewParsed.success) {
-    return <FirstTimerHdbBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
+    return <HdbSellAndBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
   }
 
   const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
@@ -113,6 +89,30 @@ export function FirstTimerHdbBuyWizard() {
   const sections: ReviewSection[] = [
     {
       stepIndex: 0,
+      title: "the flat you're selling",
+      fields: [
+        { fieldKey: 'sellFlatType', label: 'flat type', value: optionLabel(FLAT_TYPE_OPTIONS, draft.sellFlatType) },
+        { fieldKey: 'sellPrice', label: 'expected sale price', value: draft.sellPrice !== undefined ? formatSgd(draft.sellPrice) : '—' },
+        {
+          fieldKey: 'outstandingLoanBalance',
+          label: 'outstanding loan balance',
+          value: draft.outstandingLoanBalance !== undefined ? formatSgd(draft.outstandingLoanBalance) : '—',
+        },
+        {
+          fieldKey: 'cpfPrincipalUsed',
+          label: 'CPF principal used',
+          value: draft.cpfPrincipalUsed !== undefined ? formatSgd(draft.cpfPrincipalUsed) : '—',
+        },
+        { fieldKey: 'cpfUsageYears', label: 'years since CPF used', value: draft.cpfUsageYears !== undefined ? `${draft.cpfUsageYears}` : '0' },
+        {
+          fieldKey: 'expectedSellCompletionDate',
+          label: 'expected sale completion',
+          value: formatDateReadable(draft.expectedSellCompletionDate),
+        },
+      ],
+    },
+    {
+      stepIndex: 1,
       title: "who's buying",
       fields: [
         { fieldKey: 'applicationType', label: 'application type', value: optionLabel(APPLICATION_TYPE_OPTIONS, draft.applicationType) },
@@ -121,7 +121,7 @@ export function FirstTimerHdbBuyWizard() {
       ],
     },
     {
-      stepIndex: 1,
+      stepIndex: 2,
       title: 'household income',
       fields: [
         {
@@ -133,8 +133,8 @@ export function FirstTimerHdbBuyWizard() {
       ],
     },
     {
-      stepIndex: 2,
-      title: 'the flat',
+      stepIndex: 3,
+      title: "the flat you're buying",
       fields: [
         { fieldKey: 'flatSource', label: 'source', value: optionLabel(FLAT_SOURCE_OPTIONS, draft.flatSource) },
         { fieldKey: 'flatType', label: 'flat type', value: optionLabel(FLAT_TYPE_OPTIONS, draft.flatType) },
@@ -150,10 +150,15 @@ export function FirstTimerHdbBuyWizard() {
               { fieldKey: 'proximity', label: 'proximity', value: optionLabel(PROXIMITY_OPTIONS, draft.proximity) },
             ]
           : []),
+        {
+          fieldKey: 'expectedBuyCompletionDate',
+          label: 'expected purchase completion',
+          value: formatDateReadable(draft.expectedBuyCompletionDate),
+        },
       ],
     },
     {
-      stepIndex: 3,
+      stepIndex: 4,
       title: 'property history',
       fields: [
         {
@@ -164,12 +169,16 @@ export function FirstTimerHdbBuyWizard() {
       ],
     },
     {
-      stepIndex: 4,
+      stepIndex: 5,
       title: 'the loan',
       fields: [
         { fieldKey: 'loanType', label: 'loan type', value: optionLabel(LOAN_TYPE_OPTIONS, draft.loanType) },
         { fieldKey: 'tenureYears', label: 'tenure', value: draft.tenureYears !== undefined ? `${draft.tenureYears} years` : '—' },
-        { fieldKey: 'cpfOaBalance', label: 'CPF OA balance', value: draft.cpfOaBalance !== undefined ? formatSgd(draft.cpfOaBalance) : '—' },
+        {
+          fieldKey: 'additionalCpfOaBalance',
+          label: 'additional CPF OA balance',
+          value: draft.additionalCpfOaBalance !== undefined ? formatSgd(draft.additionalCpfOaBalance) : '0',
+        },
         ...(draft.loanType === 'BANK'
           ? [
               {
@@ -192,6 +201,47 @@ export function FirstTimerHdbBuyWizard() {
       <div className="mt-6 space-y-6">
         {step === 0 && (
           <>
+            <h2 className="font-display text-xl">the flat you&apos;re selling</h2>
+            <ChoiceField
+              label="flat type"
+              value={draft.sellFlatType}
+              onChange={(v) => patch({ sellFlatType: v })}
+              options={FLAT_TYPE_OPTIONS}
+            />
+            <NumberField
+              label="expected sale price"
+              value={draft.sellPrice}
+              onChange={(v) => patch({ sellPrice: v })}
+              placeholder="550000"
+            />
+            <NumberField
+              label="outstanding loan balance"
+              value={draft.outstandingLoanBalance}
+              onChange={(v) => patch({ outstandingLoanBalance: v })}
+              placeholder="100000"
+            />
+            <NumberField
+              label="CPF principal used on this flat"
+              value={draft.cpfPrincipalUsed}
+              onChange={(v) => patch({ cpfPrincipalUsed: v })}
+              placeholder="150000"
+            />
+            <NumberField
+              label="years since that CPF was used"
+              value={draft.cpfUsageYears}
+              onChange={(v) => patch({ cpfUsageYears: v })}
+              placeholder="5"
+            />
+            <DateField
+              label="expected sale completion date"
+              value={draft.expectedSellCompletionDate}
+              onChange={(v) => patch({ expectedSellCompletionDate: v })}
+            />
+          </>
+        )}
+
+        {step === 1 && (
+          <>
             <h2 className="font-display text-xl">who&apos;s buying</h2>
             <ChoiceField
               label="application type"
@@ -204,11 +254,6 @@ export function FirstTimerHdbBuyWizard() {
               value={draft.citizenshipMix}
               onChange={(v) => patch({ citizenshipMix: v })}
               options={CITIZENSHIP_OPTIONS}
-            />
-            <BoolField
-              label="are all applicants first-timers?"
-              value={draft.allFirstTimers}
-              onChange={(v) => patch({ allFirstTimers: v })}
             />
             <NumberField
               label="buyer 1 age"
@@ -227,14 +272,14 @@ export function FirstTimerHdbBuyWizard() {
           </>
         )}
 
-        {step === 1 && (
+        {step === 2 && (
           <>
             <h2 className="font-display text-xl">household income</h2>
             <NumberField
               label="avg. monthly household income"
               value={draft.avgMonthlyHouseholdIncome}
               onChange={(v) => patch({ avgMonthlyHouseholdIncome: v })}
-              placeholder="7000"
+              placeholder="9000"
             />
             <BoolField
               label="continuously employed the last 12 months?"
@@ -244,9 +289,9 @@ export function FirstTimerHdbBuyWizard() {
           </>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <>
-            <h2 className="font-display text-xl">the flat</h2>
+            <h2 className="font-display text-xl">the flat you&apos;re buying</h2>
             <ChoiceField label="source" value={draft.flatSource} onChange={(v) => patch({ flatSource: v })} options={FLAT_SOURCE_OPTIONS} />
             <ChoiceField label="flat type" value={draft.flatType} onChange={(v) => patch({ flatType: v })} options={FLAT_TYPE_OPTIONS} />
             <NumberField label="price" value={draft.price} onChange={(v) => patch({ price: v })} placeholder="600000" />
@@ -272,10 +317,15 @@ export function FirstTimerHdbBuyWizard() {
                 />
               </>
             )}
+            <DateField
+              label="expected purchase completion date"
+              value={draft.expectedBuyCompletionDate}
+              onChange={(v) => patch({ expectedBuyCompletionDate: v })}
+            />
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <h2 className="font-display text-xl">property history</h2>
             <BoolField
@@ -286,12 +336,17 @@ export function FirstTimerHdbBuyWizard() {
           </>
         )}
 
-        {step === 4 && (
+        {step === 5 && (
           <>
             <h2 className="font-display text-xl">the loan</h2>
             <ChoiceField label="loan type" value={draft.loanType} onChange={(v) => patch({ loanType: v })} options={LOAN_TYPE_OPTIONS} />
-            <NumberField label="tenure (years)" value={draft.tenureYears} onChange={(v) => patch({ tenureYears: v })} placeholder="25" />
-            <NumberField label="CPF OA balance" value={draft.cpfOaBalance} onChange={(v) => patch({ cpfOaBalance: v })} placeholder="60000" />
+            <NumberField label="tenure (years)" value={draft.tenureYears} onChange={(v) => patch({ tenureYears: v })} placeholder="20" />
+            <NumberField
+              label="additional CPF OA balance (beyond the flat you're selling)"
+              value={draft.additionalCpfOaBalance}
+              onChange={(v) => patch({ additionalCpfOaBalance: v })}
+              placeholder="0"
+            />
             {draft.loanType === 'BANK' && (
               <NumberField
                 label="existing monthly debt (optional)"
@@ -303,7 +358,7 @@ export function FirstTimerHdbBuyWizard() {
           </>
         )}
 
-        {step === 5 && (
+        {step === 6 && (
           <>
             <h2 className="font-display text-xl">review</h2>
             <p className="text-sm text-ink/70 dark:text-dark-ink/70">
