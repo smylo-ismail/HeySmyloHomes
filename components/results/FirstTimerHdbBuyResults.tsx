@@ -103,7 +103,7 @@ export function FirstTimerHdbBuyResults({
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
           {input.timelineAnchorDate
-            ? 'dates are estimated from HDB’s typical processing ranges — actual timing depends on your application and the market.'
+            ? 'dates are estimated from HDB’s typical processing ranges — actual timing depends on your application.'
             : 'durations are HDB’s typical ranges, not fixed dates — add a date above to see estimated calendar dates.'}
         </p>
       </section>
