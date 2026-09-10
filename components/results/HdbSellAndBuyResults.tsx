@@ -11,7 +11,7 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getBuyTimeline, getResaleSellTimeline } from '@/lib/timeline/hdbTimelines';
+import { getBuyTimeline, getResaleSellTimelineFromOtp } from '@/lib/timeline/hdbTimelines';
 
 export function HdbSellAndBuyResults({
   input,
@@ -21,9 +21,22 @@ export function HdbSellAndBuyResults({
   onEdit: () => void;
 }) {
   const result = useMemo(() => runHdbSellAndBuy(input), [input]);
-  const { sell, grants, bsd, absd, loan, cpf, fees, cashflow, totalCashRequired, warnings } = result;
+  const {
+    sell,
+    grants,
+    bsd,
+    absd,
+    loan,
+    cpf,
+    fees,
+    cashflow,
+    totalCashRequired,
+    estimatedSellCompletionDate,
+    estimatedBuyCompletionDate,
+    warnings,
+  } = result;
 
-  const sellsFirst = input.expectedSellCompletionDate <= input.expectedBuyCompletionDate;
+  const sellsFirst = estimatedSellCompletionDate <= estimatedBuyCompletionDate;
 
   const summary = [
     `sell ${input.sellFlatType} at ${formatSgd(input.sellPrice)}`,
@@ -37,7 +50,7 @@ export function HdbSellAndBuyResults({
     <section key="sell-timeline">
       <MicroLabel>process timeline — selling your {input.sellFlatType}</MicroLabel>
       <div className="mt-2">
-        <Timeline stages={getResaleSellTimeline()} />
+        <Timeline stages={getResaleSellTimelineFromOtp(input.sellOtpGrantedDate)} />
       </div>
     </section>
   );
@@ -46,7 +59,7 @@ export function HdbSellAndBuyResults({
     <section key="buy-timeline">
       <MicroLabel>process timeline — buying your {input.flatSource === 'BTO' ? 'BTO' : 'resale'}</MicroLabel>
       <div className="mt-2">
-        <Timeline stages={getBuyTimeline(input.flatSource)} />
+        <Timeline stages={getBuyTimeline(input.flatSource, input.buyAnchorDate)} />
       </div>
     </section>
   );
@@ -73,22 +86,8 @@ export function HdbSellAndBuyResults({
         <div className="mt-4">
           <RuledRow label="sale price" value={sell.salePrice} />
           <RuledRow label="outstanding loan redeemed" value={sell.outstandingLoanRedeemed} />
-          <RuledRow
-            label="CPF refund (principal + accrued interest)"
-            value={sell.cpfRefund.totalRefund}
-            breakdown={
-              <p>
-                Principal {formatSgd(sell.cpfRefund.principal)} + accrued interest{' '}
-                {formatSgd(sell.cpfRefund.accruedInterest)}, credited back to CPF OA — not cash,
-                and carried forward to fund the new purchase below.
-              </p>
-            }
-          />
-          <RuledRow
-            label="resale levy"
-            value={sell.resaleLevy.levy}
-            breakdown={<p>Fixed sum set by the type of the flat you&apos;re selling, not the one you&apos;re buying.</p>}
-          />
+          <RuledRow label="CPF refund (principal + accrued interest)" value={sell.cpfRefund.totalRefund} />
+          <RuledRow label="resale levy" value={sell.resaleLevy.levy} />
           <RuledRow label="selling fees (conveyancing + commission)" value={sell.sellFees.conveyancing + sell.sellFees.commission} />
         </div>
       </section>
@@ -96,52 +95,17 @@ export function HdbSellAndBuyResults({
       <section>
         <Figure label="grants total — credited to CPF OA" value={grants.total} />
         <div className="mt-4">
-          <RuledRow
-            label="CHG"
-            value={grants.chg}
-            breakdown={<p>First-timer-only grant — doesn&apos;t apply to a second-timer purchase.</p>}
-          />
-          <RuledRow
-            label="EHG"
-            value={grants.ehg}
-            breakdown={<p>First-timer-only grant — doesn&apos;t apply to a second-timer purchase.</p>}
-          />
-          <RuledRow
-            label="PHG"
-            value={grants.phg}
-            breakdown={
-              <p>
-                Proximity Housing Grant — available to second-timers too, based on proximity to
-                parents/children. One-time subsidy: doesn&apos;t apply if already claimed before.
-              </p>
-            }
-          />
+          <RuledRow label="CHG (CPF Housing Grant)" value={grants.chg} />
+          <RuledRow label="EHG (Enhanced Housing Grant)" value={grants.ehg} />
+          <RuledRow label="PHG (Proximity Housing Grant)" value={grants.phg} />
         </div>
       </section>
 
       <section>
         <MicroLabel>stamp duties</MicroLabel>
         <div className="mt-2">
-          <RuledRow
-            label="BSD"
-            value={bsd}
-            breakdown={<p>Buyer&apos;s Stamp Duty, banded on the higher of price/valuation.</p>}
-          />
-          <RuledRow
-            label="ABSD"
-            value={absd.absd}
-            breakdown={
-              <p>
-                {absd.remissionApplied
-                  ? absd.note
-                  : `Rated at ${(absd.rate * 100).toFixed(0)}% — based on ${
-                      input.expectedSellCompletionDate <= input.expectedBuyCompletionDate
-                        ? 'your sale completing before the purchase (treated as your only property)'
-                        : 'still owning your current flat at the point of purchase (a 2nd property)'
-                    }.`}
-              </p>
-            }
-          />
+          <RuledRow label="BSD (Buyer's Stamp Duty)" value={bsd} />
+          <RuledRow label="ABSD (Additional Buyer's Stamp Duty)" value={absd.absd} />
         </div>
       </section>
 

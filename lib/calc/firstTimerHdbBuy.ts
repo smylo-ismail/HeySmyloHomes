@@ -77,8 +77,6 @@ export function runFirstTimerHdbBuy(input: FirstTimerHdbBuyInput): FirstTimerHdb
     grantsTotal: grants.total,
     downpayment: loan.downpayment,
     stampDuty: bsd + absd.absd,
-    remainingLeaseYears: input.remainingLeaseYears,
-    youngestBuyerAge: input.buyerAges.length ? Math.min(...input.buyerAges) : undefined,
   });
 
   const fees = computeBuyFees({ kind: 'HDB', path: input.flatSource, price: input.price });

@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { runHdbSellAndBuy } from './hdbSellAndBuy';
 import type { HdbSellAndBuyInput } from '@/lib/schema/hdbSellAndBuy';
 
+// Both legs are RESALE-timed here, so completion = anchor + ~91 days (21-day OTP + up to 2wks
+// application + up to 8wks approval) for both sides — the anchors' relative order alone
+// determines which leg completes first.
 const baseInput: HdbSellAndBuyInput = {
   sellFlatType: '3R', // deliberately different from flatType (bought) below
   sellPrice: 550_000,
   outstandingLoanBalance: 100_000,
   cpfPrincipalUsed: 150_000,
   cpfUsageYears: 5,
-  expectedSellCompletionDate: '2027-01-15',
+  sellOtpGrantedDate: '2026-10-01',
 
   applicationType: 'FAMILY',
   citizenshipMix: 'SC_SC',
@@ -25,7 +28,7 @@ const baseInput: HdbSellAndBuyInput = {
   loanType: 'HDB',
   tenureYears: 20,
   additionalCpfOaBalance: 20_000,
-  expectedBuyCompletionDate: '2027-04-01', // after the sell date — correct sequencing
+  buyAnchorDate: '2026-12-15', // OTP granted ~2.5mo after the sell OTP — sells first
 };
 
 describe('runHdbSellAndBuy — sequencing', () => {
@@ -42,7 +45,8 @@ describe('runHdbSellAndBuy — sequencing', () => {
   });
 
   it('buy-before-sell: sequencing warning fires and ABSD is priced at the 2nd-property rate', () => {
-    const badOrder = { ...baseInput, expectedBuyCompletionDate: '2026-12-01' };
+    // Buy OTP granted before the sell OTP -> buy completes first under the same offset.
+    const badOrder = { ...baseInput, buyAnchorDate: '2026-08-01' };
     const result = runHdbSellAndBuy(badOrder);
     expect(result.warnings.some((w) => /two HDB flats at once/i.test(w))).toBe(true);
     expect(result.absd.absd).toBeGreaterThan(0);
@@ -76,11 +80,11 @@ describe('runHdbSellAndBuy — combined cashflow', () => {
     }
   });
 
-  it('flags a bridging gap when the sale happens well after the purchase needs funding', () => {
+  it('flags a bridging gap when the purchase needs funding well before the sale completes', () => {
     const result = runHdbSellAndBuy({
       ...baseInput,
-      expectedBuyCompletionDate: '2026-11-01',
-      expectedSellCompletionDate: '2027-06-01',
+      buyAnchorDate: '2026-06-01',
+      sellOtpGrantedDate: '2027-01-01',
     });
     expect(result.cashflow.bridgingNeeded).toBe(true);
     expect(result.totalCashRequired).toBeGreaterThan(0);

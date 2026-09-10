@@ -23,7 +23,7 @@ export function FirstTimerHdbBuyResults({
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
 
-  const allWarnings = [...grants.warnings, ...loan.warnings, ...cpf.warnings];
+  const allWarnings = [...grants.warnings, ...loan.warnings];
 
   if (grants.ineligibilityReasons.length > 0 && grants.total === 0) {
     // still show duty/loan figures below — grant ineligibility doesn't block the rest of the calc
@@ -56,53 +56,17 @@ export function FirstTimerHdbBuyResults({
       <section>
         <Figure label="grants total — credited to CPF OA" value={grants.total} />
         <div className="mt-4">
-          <RuledRow
-            label="CHG"
-            value={grants.chg}
-            breakdown={
-              <p>
-                Conservation/Citizen&apos;s Housing Grant, based on flat type, family/single
-                tier, and household income against the CHG income ceiling and lease-length gate.
-              </p>
-            }
-          />
-          <RuledRow
-            label="EHG"
-            value={grants.ehg}
-            breakdown={
-              <p>
-                Enhanced Housing Grant, looked up from the official HDB income-band table at
-                ${input.avgMonthlyHouseholdIncome.toLocaleString()}/month household income.
-              </p>
-            }
-          />
-          <RuledRow
-            label="PHG"
-            value={grants.phg}
-            breakdown={<p>Proximity Housing Grant, based on proximity to parents/children.</p>}
-          />
+          <RuledRow label="CHG (CPF Housing Grant)" value={grants.chg} />
+          <RuledRow label="EHG (Enhanced Housing Grant)" value={grants.ehg} />
+          <RuledRow label="PHG (Proximity Housing Grant)" value={grants.phg} />
         </div>
       </section>
 
       <section>
         <MicroLabel>stamp duties</MicroLabel>
         <div className="mt-2">
-          <RuledRow
-            label="BSD"
-            value={bsd}
-            breakdown={<p>Buyer&apos;s Stamp Duty, banded on the higher of price/valuation.</p>}
-          />
-          <RuledRow
-            label="ABSD"
-            value={absd.absd}
-            breakdown={
-              <p>
-                {absd.remissionApplied
-                  ? absd.note
-                  : `Rated at ${(absd.rate * 100).toFixed(0)}% for this buyer profile.`}
-              </p>
-            }
-          />
+          <RuledRow label="BSD (Buyer's Stamp Duty)" value={bsd} />
+          <RuledRow label="ABSD (Additional Buyer's Stamp Duty)" value={absd.absd} />
         </div>
       </section>
 
@@ -135,11 +99,12 @@ export function FirstTimerHdbBuyResults({
       <section>
         <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
         <div className="mt-2">
-          <Timeline stages={getBuyTimeline(input.flatSource)} />
+          <Timeline stages={getBuyTimeline(input.flatSource, input.timelineAnchorDate)} />
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
-          durations are HDB&apos;s typical ranges, not fixed dates — actual timing depends on your
-          application and the market.
+          {input.timelineAnchorDate
+            ? 'dates are estimated from HDB’s typical processing ranges — actual timing depends on your application and the market.'
+            : 'durations are HDB’s typical ranges, not fixed dates — add a date above to see estimated calendar dates.'}
         </p>
       </section>
 

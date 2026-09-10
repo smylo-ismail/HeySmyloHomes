@@ -91,6 +91,15 @@ describe('computeGrants — boundary sub-tests', () => {
     expect(result.chg > 0).toBe(passes);
   });
 
+  it('remainingLeaseYears omitted: CHG assumes the 20-year minimum is met, with a warning', () => {
+    const withoutLease: GrantInput = { ...case1Input };
+    delete withoutLease.remainingLeaseYears;
+    const result = computeGrants(withoutLease);
+    expect(result.chg).toBeGreaterThan(0);
+    expect(result.ineligibilityReasons).toEqual([]);
+    expect(result.warnings.some((w) => /wasn.t provided/i.test(w))).toBe(true);
+  });
+
   // Raised from $14,000/$7,000 to $16,000/$8,000 effective 24 Aug 2026 (NDR 2026).
   it.each([
     [16_000, true],
@@ -239,14 +248,35 @@ describe('computeGrants — remaining decision-tree branches', () => {
     expect(result.phg).toBe(30_000);
   });
 
-  it('lease-to-95 warning fires when lease + youngest buyer age < 95', () => {
+  it('lease-to-95 warning fires when lease + youngest buyer age < 95, and mentions loan', () => {
     const result = computeGrants({ ...case1Input, remainingLeaseYears: 60, buyerAges: [30, 30] });
     expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(true);
+    expect(result.warnings.some((w) => /loan/i.test(w))).toBe(true);
   });
 
   it('lease-to-95 warning does not fire when coverage is exactly 95', () => {
     const result = computeGrants({ ...case1Input, remainingLeaseYears: 65, buyerAges: [30, 30] });
     expect(result.warnings.some((w) => /pro-rat/i.test(w))).toBe(false);
+  });
+
+  it('blank lease years: warns about both the CHG assumption and the age-95 pro-ration risk', () => {
+    const withoutLease: GrantInput = { ...case1Input, buyerAges: [30, 30] };
+    delete withoutLease.remainingLeaseYears;
+    const result = computeGrants(withoutLease);
+    const warning = result.warnings.find((w) => /wasn.t provided/i.test(w));
+    expect(warning).toBeDefined();
+    expect(warning).toMatch(/20 years/);
+    expect(warning).toMatch(/age 95/);
+    expect(warning).toMatch(/loan and grants/i);
+  });
+
+  it('a satisfied 95-year lease coverage, once known, does not retroactively excuse a blank one', () => {
+    // Sanity check that the two checks are genuinely independent branches, not accidentally
+    // sharing state: blank-lease always warns regardless of buyer age.
+    const withoutLease: GrantInput = { ...case1Input, buyerAges: [80] };
+    delete withoutLease.remainingLeaseYears;
+    const result = computeGrants(withoutLease);
+    expect(result.warnings.some((w) => /wasn.t provided/i.test(w))).toBe(true);
   });
 
   it('SINGLE application: EHG looked up from the official EHG Singles table', () => {
