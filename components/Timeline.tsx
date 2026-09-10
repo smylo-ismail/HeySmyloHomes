@@ -17,10 +17,17 @@ function useScrollFill(containerRef: React.RefObject<HTMLDivElement>, fillRef: R
       const fill = fillRef.current;
       if (container && fill) {
         const rect = container.getBoundingClientRect();
+        const scrollY = window.scrollY;
+        const containerTopAbs = rect.top + scrollY;
+        const containerBottomAbs = containerTopAbs + rect.height;
+        const maxScrollY = document.documentElement.scrollHeight - window.innerHeight;
         // 0 as the element enters from the bottom of the viewport, 1 once it has fully
-        // scrolled past the top — self-contained per element, no reliance on page content
-        // below it to "complete".
-        const p = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+        // scrolled past the top. The "1" target is capped at the page's actual max scroll —
+        // if there isn't enough content below the timeline to scroll it fully past, reaching
+        // the bottom of the page still counts as complete rather than stalling short of 1.
+        const start = containerTopAbs - window.innerHeight;
+        const end = Math.min(containerBottomAbs, maxScrollY);
+        const p = end > start ? (scrollY - start) / (end - start) : 1;
         fill.style.transform = `scaleY(${Math.min(1, Math.max(0, p))})`;
       }
       rafId = requestAnimationFrame(loop);

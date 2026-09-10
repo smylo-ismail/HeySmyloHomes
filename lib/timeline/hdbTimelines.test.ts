@@ -99,6 +99,11 @@ describe('getResaleBuyTimelineFromOtp', () => {
       expect(stage.date).toBeTruthy();
     }
   });
+
+  it('shows completion as a single date at the end of the approval window, not a duplicate of its range', () => {
+    const completion = stages.find((s) => s.name === 'Resale completion (estimated)');
+    expect(completion?.date).toBe('2 Apr 2027');
+  });
 });
 
 describe('getResaleSellTimelineFromOtp', () => {

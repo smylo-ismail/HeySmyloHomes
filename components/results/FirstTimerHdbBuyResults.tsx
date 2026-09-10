@@ -111,7 +111,6 @@ export function FirstTimerHdbBuyResults({
       <WarningsPanel warnings={allWarnings} />
 
       <footer className="space-y-4 border-t border-rule pt-6 text-sm text-ink/60 dark:border-white/10 dark:text-dark-ink/60">
-        <p>estimates only — your HFE letter is the confirmed answer.</p>
         <div className="flex flex-wrap gap-3">
           <InkButton onClick={onEdit} variant="secondary">
             edit inputs
@@ -120,7 +119,7 @@ export function FirstTimerHdbBuyResults({
             <InkButton>discuss this with smylo</InkButton>
           </a>
         </div>
-        <p className="text-xs">sign in to save this scenario so smylo can see the details.</p>
+        <p className="text-xs">sign in to save this scenario.</p>
       </footer>
     </div>
   );
