@@ -2,16 +2,24 @@ import Link from 'next/link';
 import { InkButton } from '@/components/InkButton';
 import { MicroLabel } from '@/components/MicroLabel';
 
-const SCENARIOS = [
+// Grouped by property category so the list scales as more scenario types (private property
+// buy, private sell+buy, etc.) are added — new groups get their own MicroLabel rather than
+// growing one long undifferentiated list of buttons.
+const SCENARIO_GROUPS = [
   {
-    href: '/simulate/first-timer-hdb-buy',
-    label: 'first-timer HDB buy',
-    description: 'your first flat — BTO or resale',
-  },
-  {
-    href: '/simulate/hdb-sell-and-buy',
-    label: 'HDB sell & buy',
-    description: 'sell your flat, buy your next one',
+    category: 'HDB',
+    scenarios: [
+      {
+        href: '/simulate/first-timer-hdb-buy',
+        label: 'first-timer HDB buy',
+        description: 'your first flat — BTO or resale',
+      },
+      {
+        href: '/simulate/hdb-sell-and-buy',
+        label: 'HDB sell & buy',
+        description: 'sell your flat, buy your next one',
+      },
+    ],
   },
 ];
 
@@ -30,16 +38,23 @@ export default function Home() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-3">
-          {SCENARIOS.map((s) => (
-            <Link key={s.href} href={s.href} className="block">
-              <InkButton variant="secondary" className="w-full text-left normal-case tracking-normal">
-                <span className="block text-sm uppercase tracking-wide">{s.label}</span>
-                <span className="mt-0.5 block text-xs font-normal text-ink/60 dark:text-dark-ink/60">
-                  {s.description}
-                </span>
-              </InkButton>
-            </Link>
+        <div className="space-y-6">
+          {SCENARIO_GROUPS.map((group) => (
+            <div key={group.category}>
+              <MicroLabel>{group.category}</MicroLabel>
+              <div className="mt-2 flex flex-col gap-3">
+                {group.scenarios.map((s) => (
+                  <Link key={s.href} href={s.href} className="block">
+                    <InkButton variant="secondary" className="w-full text-left normal-case tracking-normal">
+                      <span className="block text-sm uppercase tracking-wide">{s.label}</span>
+                      <span className="mt-0.5 block text-xs font-normal text-ink/60 dark:text-dark-ink/60">
+                        {s.description}
+                      </span>
+                    </InkButton>
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
 
