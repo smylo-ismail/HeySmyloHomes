@@ -1,53 +1,48 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { TimelineStage } from '@/lib/timeline/hdbTimelines';
 
-/** Vertical rule that fills in as the timeline scrolls through the viewport — 0% as it enters
- *  from the bottom, 100% once it has fully scrolled past the top. Self-contained per element
- *  (doesn't need extra page content below to "complete"), unlike anchoring to a fixed line. */
-function useScrollFill(containerRef: React.RefObject<HTMLDivElement>) {
-  const [progress, setProgress] = useState(0);
-
+/** Drives the fill line's transform directly every animation frame — no React state, no CSS
+ *  transition. A transitioned/state-driven fill visibly lags scroll (each update restarts its
+ *  own easing curve, so it perpetually "chases" fast scrolling instead of tracking it); a
+ *  continuous rAF loop writing straight to the DOM tracks scroll position 1:1, every frame,
+ *  including during momentum scrolling where the browser can batch/skip 'scroll' events. */
+function useScrollFill(containerRef: React.RefObject<HTMLDivElement>, fillRef: React.RefObject<HTMLDivElement>) {
   useEffect(() => {
-    let raf = 0;
+    let rafId: number;
 
-    const update = () => {
-      raf = 0;
-      const el = containerRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const p = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
-      setProgress(Math.min(1, Math.max(0, p)));
+    const loop = () => {
+      const container = containerRef.current;
+      const fill = fillRef.current;
+      if (container && fill) {
+        const rect = container.getBoundingClientRect();
+        // 0 as the element enters from the bottom of the viewport, 1 once it has fully
+        // scrolled past the top — self-contained per element, no reliance on page content
+        // below it to "complete".
+        const p = (window.innerHeight - rect.top) / (window.innerHeight + rect.height);
+        fill.style.transform = `scaleY(${Math.min(1, Math.max(0, p))})`;
+      }
+      rafId = requestAnimationFrame(loop);
     };
 
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(update);
-    };
-
-    update();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
-  }, [containerRef]);
-
-  return progress;
+    rafId = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(rafId);
+  }, [containerRef, fillRef]);
 }
 
 export function Timeline({ stages }: { stages: TimelineStage[] }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const progress = useScrollFill(containerRef);
+  const fillRef = useRef<HTMLDivElement>(null);
+  useScrollFill(containerRef, fillRef);
 
   return (
     <div ref={containerRef} className="relative pl-6">
       <div className="absolute left-[3px] top-1 bottom-1 w-px bg-rule dark:bg-white/10" />
       <div
-        className="absolute left-[3px] top-1 w-px bg-ink transition-[height] duration-150 ease-out dark:bg-dark-ink"
-        style={{ height: `calc((100% - 0.5rem) * ${progress})` }}
+        ref={fillRef}
+        className="absolute left-[3px] top-1 bottom-1 w-px origin-top bg-ink dark:bg-dark-ink"
+        style={{ transform: 'scaleY(0)' }}
       />
       {stages.map((stage) => (
         <div key={stage.name} className="relative pb-6 last:pb-0">
