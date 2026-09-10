@@ -12,12 +12,12 @@ const SCENARIO_GROUPS = [
       {
         href: '/simulate/first-timer-hdb-buy',
         label: 'first-timer HDB buy',
-        description: 'your first flat — BTO or resale',
+        description: 'your first home — BTO or resale',
       },
       {
         href: '/simulate/hdb-sell-and-buy',
         label: 'HDB sell & buy',
-        description: 'sell your flat, buy your next one',
+        description: 'sell your home, buy your next one',
       },
     ],
   },
@@ -30,11 +30,11 @@ export default function Home() {
         <div className="space-y-5">
           <MicroLabel>smylo · property scenario simulator</MicroLabel>
           <h1 className="font-display text-4xl leading-[1.05] text-balance">
-            Know your numbers before you talk to an agent.
+            Start your home journey with confidence and clarity.
           </h1>
           <p className="text-ink/70 dark:text-dark-ink/70">
-            Grants, duties, loan limits, cash required — calculated the way HDB and the banks
-            actually do it.
+            Realistic estimates for your grants, duties, and cash 
+            required—based directly on current HDB and MAS guidelines.
           </p>
         </div>
 
@@ -59,7 +59,7 @@ export default function Home() {
         </div>
 
         <p className="border-t border-rule pt-4 text-xs text-ink/50 dark:border-white/10 dark:text-dark-ink/50">
-          anonymous · no sign-up · estimates verified against HDB, IRAS &amp; MAS rates
+          anonymous · no sign-up · estimates verified against HDB & IRAS
         </p>
       </div>
       <footer className="mt-16 border-t border-rule pt-4 text-xs text-ink/50 dark:border-white/10 dark:text-dark-ink/50">
