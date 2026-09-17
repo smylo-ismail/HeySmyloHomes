@@ -178,9 +178,12 @@ function buildResaleTimelineFromOtp(otpDate: string, labels: ResaleOtpLabels): T
       description: labels.approvalDescription,
     },
     {
+      // A single date, not a range — matches estimateBuyCompletionDate/estimateSellCompletionDate
+      // below, which use this same upper bound as the conservative completion estimate. Showing
+      // completion as the identical range as HDB approval read as the same milestone twice.
       name: labels.completionName,
       duration: '—',
-      date: dateRangeLabel(approvalMin, approvalMax),
+      date: fmt(approvalMax),
       description: labels.completionDescription,
     },
   ];

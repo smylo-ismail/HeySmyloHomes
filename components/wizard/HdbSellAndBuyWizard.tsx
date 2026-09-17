@@ -56,6 +56,10 @@ export function HdbSellAndBuyWizard() {
   const [draft, setDraft] = useLocalDraft<HdbSellAndBuyDraft>(STORAGE_KEY, EMPTY_SELL_AND_BUY_DRAFT);
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  // Set when the user jumps in from the review step to edit one section — every field edit is
+  // already live in `draft` as you type, so there's nothing more to "confirm" by walking through
+  // the untouched steps in between; the next "next" press should return straight to review.
+  const [returningToReview, setReturningToReview] = useState(false);
 
   const patch = (fields: HdbSellAndBuyDraft) => setDraft({ ...draft, ...fields });
 
@@ -72,10 +76,21 @@ export function HdbSellAndBuyWizard() {
     return <HdbSellAndBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
   }
 
-  const next = () => setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+  const next = () => {
+    if (returningToReview) {
+      setReturningToReview(false);
+      setStep(TOTAL_STEPS - 1);
+    } else {
+      setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+    }
+  };
   const back = () => setStep((s) => Math.max(s - 1, 0));
   const trySubmit = () => {
     if (reviewParsed.success) setSubmitted(true);
+  };
+  const jumpToStep = (target: number) => {
+    setReturningToReview(true);
+    setStep(target);
   };
 
   const invalidFields: Record<string, string> = {};
@@ -197,6 +212,7 @@ export function HdbSellAndBuyWizard() {
       setDraft(EMPTY_SELL_AND_BUY_DRAFT);
       setStep(0);
       setSubmitted(false);
+      setReturningToReview(false);
     }
   };
 
@@ -381,7 +397,7 @@ export function HdbSellAndBuyWizard() {
             <p className="text-sm text-ink/70 dark:text-dark-ink/70">
               Check everything below — click &quot;edit&quot; on any section to change it.
             </p>
-            <ReviewSummary sections={sections} invalidFields={invalidFields} onJump={setStep} />
+            <ReviewSummary sections={sections} invalidFields={invalidFields} onJump={jumpToStep} />
           </>
         )}
       </div>
@@ -391,7 +407,7 @@ export function HdbSellAndBuyWizard() {
           back
         </InkButton>
         {step < TOTAL_STEPS - 1 ? (
-          <InkButton onClick={next}>next</InkButton>
+          <InkButton onClick={next}>{returningToReview ? 'back to review' : 'next'}</InkButton>
         ) : (
           <InkButton onClick={trySubmit} disabled={!reviewParsed.success}>
             see results
