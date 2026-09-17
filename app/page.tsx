@@ -30,7 +30,7 @@ export default function Home() {
         <div className="space-y-5">
           <MicroLabel>smylo · property scenario simulator</MicroLabel>
           <h1 className="font-display text-3xl leading-[1.15] text-balance">
-            We&rsquo;re here to help you understand your numbers before you meet an agent.
+            We&rsquo;re here to help you understand your numbers before you start looking for your home.
           </h1>
           <p className="text-ink/70 dark:text-dark-ink/70">
             No pressure — just estimates for your grants, duties, loan limits and cash needed.
