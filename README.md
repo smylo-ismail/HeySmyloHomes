@@ -66,9 +66,11 @@ images unoptimized) — this is a hard constraint for Cloudflare Pages deploymen
 - **Phase 3 (HDB sell & buy):** done — `HDB_SELL_AND_BUY` wizard + results screen. Pure
   second-timer buy leg only (CHG/EHG don't apply, PHG does); mixed first-timer/second-timer
   households are still an unsupported "worth a chat" stop, same as `FIRST_TIMER_HDB_BUY`'s
-  second-timer gate — Step-Up grant rules aren't verified yet.
-- **Phase 4+ (auth/persistence, share/compare/agent dashboard, private resale, V2):** not yet
-  built.
+  second-timer gate — Step-Up grant rules aren't verified yet. The buy leg can now target
+  either another HDB flat or a private resale property (no grants, bank loan only, no MSR,
+  private resale process timeline) — new-launch/BUC on the buy leg is still V2.
+- **Phase 4+ (auth/persistence, share/compare/agent dashboard, new-launch buy leg, V2):** not
+  yet built.
 
 Rates/amounts sourced from HDB, IRAS, and MAS as of the date in `config/rates.ts`'s `asOfDate`
 — verify against official pages before relying on this for real transactions. Every result

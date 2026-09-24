@@ -99,7 +99,7 @@ export function FirstTimerHdbBuyResults({
       <section>
         <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
         <div className="mt-2">
-          <Timeline stages={getBuyTimeline(input.flatSource, input.timelineAnchorDate)} />
+          <Timeline stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate)} />
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
           {input.timelineAnchorDate

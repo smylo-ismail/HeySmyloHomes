@@ -34,6 +34,10 @@ const CITIZENSHIP_OPTIONS = [
   { value: 'SC_SPR' as const, label: 'SC + SPR' },
   { value: 'SC_ONLY' as const, label: 'SC (single)' },
 ];
+const FLAT_DESTINATION_OPTIONS = [
+  { value: 'HDB' as const, label: 'another HDB flat' },
+  { value: 'PRIVATE' as const, label: 'private resale property' },
+];
 const FLAT_SOURCE_OPTIONS = [
   { value: 'BTO' as const, label: 'BTO' },
   { value: 'RESALE' as const, label: 'resale' },
@@ -47,6 +51,8 @@ const LOAN_TYPE_OPTIONS = [
   { value: 'HDB' as const, label: 'HDB loan' },
   { value: 'BANK' as const, label: 'bank loan' },
 ];
+// An HDB loan can only ever fund an HDB flat — once buying private is picked, don't offer it.
+const BANK_ONLY_LOAN_TYPE_OPTIONS = LOAN_TYPE_OPTIONS.filter((o) => o.value === 'BANK');
 
 function optionLabel<T extends string>(options: { value: T; label: string }[], value: T | undefined): string {
   return options.find((o) => o.value === value)?.label ?? '—';
@@ -151,11 +157,16 @@ export function HdbSellAndBuyWizard() {
       stepIndex: 3,
       title: "the flat you're buying",
       fields: [
-        { fieldKey: 'flatSource', label: 'source', value: optionLabel(FLAT_SOURCE_OPTIONS, draft.flatSource) },
-        { fieldKey: 'flatType', label: 'flat type', value: optionLabel(FLAT_TYPE_OPTIONS, draft.flatType) },
+        { fieldKey: 'flatDestination', label: 'buying', value: optionLabel(FLAT_DESTINATION_OPTIONS, draft.flatDestination) },
+        ...(draft.flatDestination === 'HDB'
+          ? [
+              { fieldKey: 'flatSource', label: 'source', value: optionLabel(FLAT_SOURCE_OPTIONS, draft.flatSource) },
+              { fieldKey: 'flatType', label: 'flat type', value: optionLabel(FLAT_TYPE_OPTIONS, draft.flatType) },
+            ]
+          : []),
         { fieldKey: 'price', label: 'price', value: draft.price !== undefined ? formatSgd(draft.price) : '—' },
         { fieldKey: 'valuation', label: 'valuation', value: draft.valuation !== undefined ? formatSgd(draft.valuation) : 'same as price' },
-        ...(draft.flatSource === 'RESALE'
+        ...(draft.flatDestination === 'HDB' && draft.flatSource === 'RESALE'
           ? [
               {
                 fieldKey: 'remainingLeaseYears',
@@ -167,7 +178,7 @@ export function HdbSellAndBuyWizard() {
           : []),
         {
           fieldKey: 'buyAnchorDate',
-          label: draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
+          label: draft.flatDestination === 'HDB' && draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
           value: formatDateReadable(draft.buyAnchorDate),
         },
       ],
@@ -325,8 +336,25 @@ export function HdbSellAndBuyWizard() {
         {step === 3 && (
           <>
             <h2 className="font-display text-xl">the flat you&apos;re buying</h2>
-            <ChoiceField label="source" value={draft.flatSource} onChange={(v) => patch({ flatSource: v })} options={FLAT_SOURCE_OPTIONS} />
-            <ChoiceField label="flat type" value={draft.flatType} onChange={(v) => patch({ flatType: v })} options={FLAT_TYPE_OPTIONS} />
+            <ChoiceField
+              label="buying"
+              value={draft.flatDestination}
+              onChange={(v) =>
+                patch({
+                  flatDestination: v,
+                  // An HDB loan can't fund a private purchase — clear it rather than leave a
+                  // now-invalid selection sitting in the draft.
+                  loanType: v === 'PRIVATE' && draft.loanType === 'HDB' ? undefined : draft.loanType,
+                })
+              }
+              options={FLAT_DESTINATION_OPTIONS}
+            />
+            {draft.flatDestination === 'HDB' && (
+              <>
+                <ChoiceField label="source" value={draft.flatSource} onChange={(v) => patch({ flatSource: v })} options={FLAT_SOURCE_OPTIONS} />
+                <ChoiceField label="flat type" value={draft.flatType} onChange={(v) => patch({ flatType: v })} options={FLAT_TYPE_OPTIONS} />
+              </>
+            )}
             <NumberField label="price" value={draft.price} onChange={(v) => patch({ price: v })} placeholder="600000" />
             <NumberField
               label="valuation"
@@ -334,7 +362,7 @@ export function HdbSellAndBuyWizard() {
               onChange={(v) => patch({ valuation: v })}
               placeholder="same as price if unsure"
             />
-            {draft.flatSource === 'RESALE' && (
+            {draft.flatDestination === 'HDB' && draft.flatSource === 'RESALE' && (
               <>
                 <NumberField
                   label="remaining lease (years) — optional"
@@ -351,7 +379,7 @@ export function HdbSellAndBuyWizard() {
               </>
             )}
             <DateField
-              label={draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date (or expected)'}
+              label={draft.flatDestination === 'HDB' && draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date (or expected)'}
               value={draft.buyAnchorDate}
               onChange={(v) => patch({ buyAnchorDate: v })}
             />
@@ -372,7 +400,12 @@ export function HdbSellAndBuyWizard() {
         {step === 5 && (
           <>
             <h2 className="font-display text-xl">the loan</h2>
-            <ChoiceField label="loan type" value={draft.loanType} onChange={(v) => patch({ loanType: v })} options={LOAN_TYPE_OPTIONS} />
+            <ChoiceField
+              label="loan type"
+              value={draft.loanType}
+              onChange={(v) => patch({ loanType: v })}
+              options={draft.flatDestination === 'PRIVATE' ? BANK_ONLY_LOAN_TYPE_OPTIONS : LOAN_TYPE_OPTIONS}
+            />
             <NumberField label="tenure (years)" value={draft.tenureYears} onChange={(v) => patch({ tenureYears: v })} placeholder="20" />
             <NumberField
               label="additional CPF OA balance (beyond the flat you're selling)"

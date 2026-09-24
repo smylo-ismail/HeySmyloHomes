@@ -234,7 +234,74 @@ export function getBtoBuyTimelineFromApplication(applicationDate: string): Timel
   );
 }
 
-export function getBuyTimeline(flatSource: FlatSource, anchorDate?: string): TimelineStage[] {
+export function getPrivateResaleBuyTimeline(): TimelineStage[] {
+  const t = RATES.timeline.privateResaleBuy;
+  return [
+    {
+      name: 'In-principle loan approval (IPA)',
+      duration: weeksRangeLabel(t.ipaWeeks),
+      description: 'Typically sought before house-hunting so you know your borrowing limit — not statutory.',
+    },
+    {
+      name: 'Find a unit',
+      duration: 'varies',
+      description: 'No fixed duration — depends on the market and your search.',
+    },
+    {
+      name: 'Grant & exercise Option to Purchase (OTP)',
+      duration: `${t.otpDays} days`,
+      description: 'Customary private resale option period — not legally fixed the way HDB’s 21 days is.',
+    },
+    {
+      name: 'Completion',
+      duration: weeksRangeLabel(t.completionWeeks),
+      description: 'Conveyancing and loan disbursement after the option is exercised.',
+    },
+  ];
+}
+
+/** Same date-math shape as buildResaleTimelineFromOtp, but for a private resale purchase — no
+ *  HDB application/approval stage, and completion is a single stage (not approval + separate
+ *  completion) since there's no HDB processing step in between. */
+export function getPrivateResaleBuyTimelineFromOtp(otpDate: string): TimelineStage[] {
+  const t = RATES.timeline.privateResaleBuy;
+  const otp = parseISO(otpDate);
+  const optionEnd = addDays(otp, t.otpDays);
+  const completionMin = addWeeks(optionEnd, t.completionWeeks[0]);
+  const completionMax = addWeeks(optionEnd, t.completionWeeks[1]);
+
+  return [
+    {
+      name: 'OTP granted',
+      duration: fmt(otp),
+      date: fmt(otp),
+      description: 'The date the seller granted you the Option to Purchase.',
+    },
+    {
+      name: 'Option period ends (exercise by)',
+      duration: `${t.otpDays} days after OTP`,
+      date: fmt(optionEnd),
+      description: 'Customary private resale option period — exercise by this date.',
+    },
+    {
+      name: 'Completion (estimated)',
+      duration: weeksRangeLabel(t.completionWeeks),
+      date: dateRangeLabel(completionMin, completionMax),
+      description: 'Final payment and handover of keys.',
+    },
+  ];
+}
+
+export type FlatDestination = 'HDB' | 'PRIVATE';
+
+export function getBuyTimeline(
+  destination: FlatDestination,
+  flatSource: FlatSource | undefined,
+  anchorDate?: string
+): TimelineStage[] {
+  if (destination === 'PRIVATE') {
+    return anchorDate ? getPrivateResaleBuyTimelineFromOtp(anchorDate) : getPrivateResaleBuyTimeline();
+  }
   if (anchorDate) {
     return flatSource === 'BTO' ? getBtoBuyTimelineFromApplication(anchorDate) : getResaleBuyTimelineFromOtp(anchorDate);
   }
@@ -243,8 +310,18 @@ export function getBuyTimeline(flatSource: FlatSource, anchorDate?: string): Tim
 
 /** Conservative (latest-estimate) completion date, for feeding into cashflow sequencing —
  *  not for display; use the timeline functions above for the user-facing range. */
-export function estimateBuyCompletionDate(flatSource: FlatSource, anchorDate: string): string {
+export function estimateBuyCompletionDate(
+  destination: FlatDestination,
+  flatSource: FlatSource | undefined,
+  anchorDate: string
+): string {
   const anchor = parseISO(anchorDate);
+  if (destination === 'PRIVATE') {
+    const t = RATES.timeline.privateResaleBuy;
+    const optionEnd = addDays(anchor, t.otpDays);
+    const completionMax = addWeeks(optionEnd, t.completionWeeks[1]);
+    return completionMax.toISOString().slice(0, 10);
+  }
   if (flatSource === 'BTO') {
     // No reliable sourced figure links application date to key collection directly; the
     // construction-years midpoint is the best defensible estimate for this long a horizon.

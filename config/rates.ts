@@ -206,6 +206,13 @@ export const RATES = {
       constructionYears: [3, 5],
       keyCollectionMonthsAfterBooking: 9, // completed / shorter-wait Plus & Prime flats
     },
-    privateResaleBuy: { ipaMin: 1, ipaMax: 2, otpDays: 14, completionMin: 8, completionMax: 12 },
+    // Private resale (non-HDB) buy timeline — not on an HDB process page, so sourced from
+    // conveyancing/agency guides (PropertyGuru, 99.co, Singapore law-firm conveyancing
+    // explainers) rather than a single official page: in-principle loan approval (IPA) typically
+    // sought before house-hunting; a private resale option period is customarily ~14 days
+    // (unlike HDB's legally-fixed 21); completion customarily follows 8-12 weeks after exercise
+    // to allow conveyancing + loan disbursement. Corroborated across sources but not a statutory
+    // figure the way HDB's 21-day option period is — treat as a typical range, not a guarantee.
+    privateResaleBuy: { ipaWeeks: [1, 2], otpDays: 14, completionWeeks: [8, 12] },
   },
 } as const;

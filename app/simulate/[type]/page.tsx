@@ -1,8 +1,9 @@
 import { FirstTimerHdbBuyWizard } from '@/components/wizard/FirstTimerHdbBuyWizard';
 import { HdbSellAndBuyWizard } from '@/components/wizard/HdbSellAndBuyWizard';
 
-// V1 ships FIRST_TIMER_HDB_BUY and HDB_SELL_AND_BUY; remaining V1 §4 roadmap items
-// (HDB_SELL_ONLY) and V2 (NEW_LAUNCH_BUY, PRIVATE_SELL_AND_BUY) are still unsupported.
+// V1 ships FIRST_TIMER_HDB_BUY and HDB_SELL_AND_BUY (the latter's buy leg can target HDB or
+// private resale); remaining V1 §4 roadmap items (HDB_SELL_ONLY) and V2 (a new-launch/BUC buy
+// leg) are still unsupported.
 const SUPPORTED_TYPES = ['first-timer-hdb-buy', 'hdb-sell-and-buy'] as const;
 
 export function generateStaticParams() {
