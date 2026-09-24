@@ -11,7 +11,7 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getBuyTimeline, getResaleSellTimelineFromOtp } from '@/lib/timeline/hdbTimelines';
+import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
 
 export function HdbSellAndBuyResults({
   input,
@@ -52,23 +52,12 @@ export function HdbSellAndBuyResults({
     `cash required ${formatSgd(totalCashRequired)}`,
   ].join(' · ');
 
-  const sellTimelineSection = (
-    <section key="sell-timeline">
-      <MicroLabel>process timeline — selling your {input.sellFlatType}</MicroLabel>
-      <div className="mt-2">
-        <Timeline stages={getResaleSellTimelineFromOtp(input.sellOtpGrantedDate)} />
-      </div>
-    </section>
-  );
-
-  const buyTimelineSection = (
-    <section key="buy-timeline">
-      <MicroLabel>process timeline — buying your {buyKindLabel}</MicroLabel>
-      <div className="mt-2">
-        <Timeline stages={getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate)} />
-      </div>
-    </section>
-  );
+  // One chronologically-interleaved timeline rather than two separate lists — the point of a
+  // sell + buy scenario is seeing how the two processes actually overlap in calendar time.
+  const combinedStages = mergeTimelines([
+    { tag: `selling your ${input.sellFlatType}`, stages: getResaleSellTimelineFromOtp(input.sellOtpGrantedDate) },
+    { tag: `buying your ${buyKindLabel}`, stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate) },
+  ]);
 
   return (
     <div className="mx-auto max-w-lg px-4 py-8 space-y-10">
@@ -148,7 +137,17 @@ export function HdbSellAndBuyResults({
         </div>
       </section>
 
-      {sellsFirst ? [sellTimelineSection, buyTimelineSection] : [buyTimelineSection, sellTimelineSection]}
+      <section>
+        <MicroLabel>process timeline — selling &amp; buying</MicroLabel>
+        <p className="mt-1 text-xs text-ink/50 dark:text-dark-ink/50">
+          {sellsFirst
+            ? 'your sale is on track to complete before your purchase.'
+            : 'your purchase is on track to complete before your sale — see the warnings below.'}
+        </p>
+        <div className="mt-2">
+          <Timeline stages={combinedStages} />
+        </div>
+      </section>
 
       <WarningsPanel warnings={warnings} />
 

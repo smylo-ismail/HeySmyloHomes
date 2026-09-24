@@ -51,9 +51,10 @@ export function Timeline({ stages }: { stages: TimelineStage[] }) {
         className="absolute left-[3px] top-1 bottom-1 w-px origin-top bg-ink dark:bg-dark-ink"
         style={{ transform: 'scaleY(0)' }}
       />
-      {stages.map((stage) => (
-        <div key={stage.name} className="relative pb-6 last:pb-0">
+      {stages.map((stage, i) => (
+        <div key={`${stage.tag ?? ''}-${stage.name}-${i}`} className="relative pb-6 last:pb-0">
           <div className="absolute -left-6 top-1 h-[7px] w-[7px] rounded-full bg-ink dark:bg-dark-ink" />
+          {stage.tag && <div className="micro-label text-ink/40 dark:text-dark-ink/40">{stage.tag}</div>}
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <span className="text-sm">{stage.name}</span>
             <span className="figure text-xs shrink-0 text-ink/60 dark:text-dark-ink/60">
