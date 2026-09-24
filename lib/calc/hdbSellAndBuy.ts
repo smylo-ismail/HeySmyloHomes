@@ -46,29 +46,42 @@ function citizenshipsFor(mix: HdbSellAndBuyInput['citizenshipMix']): {
 export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult {
   const warnings: string[] = [];
 
+  // CPF housing grants (CHG/EHG/PHG) only exist for HDB purchases — a private property buy
+  // never gets any, regardless of income/citizenship, so skip the HDB-only grants engine
+  // entirely rather than feeding it fields (flatType/proximity) that don't apply.
+  const grants: GrantResult =
+    input.flatDestination === 'PRIVATE'
+      ? { ehg: 0, chg: 0, phg: 0, total: 0, ineligibilityReasons: [], warnings: [] }
+      : computeGrants({
+          applicationType: input.applicationType,
+          citizenshipMix: input.citizenshipMix,
+          allFirstTimers: false,
+          allSecondTimers: true,
+          avgMonthlyHouseholdIncome: input.avgMonthlyHouseholdIncome,
+          employedContinuously12Months: input.employedContinuously12Months,
+          buyerAges: input.buyerAges,
+          flatSource: input.flatSource!,
+          flatType: input.flatType!,
+          remainingLeaseYears: input.remainingLeaseYears,
+          proximity: input.proximity!,
+          ownsOrDisposedPrivateWithin30Months: input.ownsOrDisposedPrivateWithin30Months,
+        });
+
+  // The resale levy only fires when disposing of a subsidised flat to acquire ANOTHER
+  // subsidised flat — a new flat bought directly from HDB (BTO/SBF), or a resale flat bought
+  // WITH a CPF housing grant. A resale flat bought with no grant, or a private property, isn't
+  // "another subsidised flat" and owes no levy at all.
+  const isSecondSubsidisedFlat =
+    input.flatDestination === 'HDB' && (input.flatSource === 'BTO' || grants.total > 0);
+
   const sell = computeSellFlat({
     salePrice: input.sellPrice,
     outstandingLoanBalance: input.outstandingLoanBalance,
     cpfRefund: { principal: input.cpfPrincipalUsed, years: input.cpfUsageYears },
     resaleLevy: {
-      isSecondSubsidisedFlat: true, // selling one subsidised HDB flat to buy another
+      isSecondSubsidisedFlat,
       flatTypeSold: input.sellFlatType,
     },
-  });
-
-  const grants = computeGrants({
-    applicationType: input.applicationType,
-    citizenshipMix: input.citizenshipMix,
-    allFirstTimers: false,
-    allSecondTimers: true,
-    avgMonthlyHouseholdIncome: input.avgMonthlyHouseholdIncome,
-    employedContinuously12Months: input.employedContinuously12Months,
-    buyerAges: input.buyerAges,
-    flatSource: input.flatSource,
-    flatType: input.flatType,
-    remainingLeaseYears: input.remainingLeaseYears,
-    proximity: input.proximity,
-    ownsOrDisposedPrivateWithin30Months: input.ownsOrDisposedPrivateWithin30Months,
   });
 
   const bsd = computeBsd(input.price, input.valuation);
@@ -78,16 +91,23 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
   // a BTO purchase, the application date). See lib/timeline/hdbTimelines.ts for the same math
   // driving the process-timeline display.
   const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate);
-  const estimatedBuyCompletionDate = estimateBuyCompletionDate(input.flatSource, input.buyAnchorDate);
+  const estimatedBuyCompletionDate = estimateBuyCompletionDate(
+    input.flatDestination,
+    input.flatSource,
+    input.buyAnchorDate
+  );
 
-  // HDB doesn't allow owning two HDB flats concurrently, so the sale should complete on or
-  // before the purchase. If the wizard's dates say otherwise, this couple would count as
-  // owning 2 residential properties at the point of purchase — flag it and price it correctly
-  // rather than silently assuming the (not actually available) 1-property rate.
+  // If the sale hasn't completed by the time the purchase does, this household counts as
+  // owning 2 residential properties at that point — priced correctly via ABSD below either way.
+  // The wording differs: buying another HDB flat while still owning one isn't normally
+  // possible at all (HDB caps ownership at one flat), whereas holding an HDB flat alongside a
+  // private property is allowed — the cost, not a prohibition, is the thing to flag there.
   const sellsBeforeOrOnBuy = estimatedSellCompletionDate <= estimatedBuyCompletionDate;
   if (!sellsBeforeOrOnBuy) {
     warnings.push(
-      'HDB doesn’t allow owning two HDB flats at once — buying before your sale completes isn’t normally possible without a special arrangement. Worth a chat with smylo.'
+      input.flatDestination === 'HDB'
+        ? 'HDB doesn’t allow owning two HDB flats at once — buying before your sale completes isn’t normally possible without a special arrangement. Worth a chat with smylo.'
+        : 'Your sale hasn’t completed by your intended purchase date — you’d own 2 properties at that point, which means Additional Buyer’s Stamp Duty applies (already priced in below).'
     );
   }
   const propertyCount = sellsBeforeOrOnBuy ? 1 : 2;
@@ -111,7 +131,8 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     tenureYears: input.tenureYears,
     avgMonthlyHouseholdIncome: input.avgMonthlyHouseholdIncome,
     existingMonthlyDebt: input.existingMonthlyDebt,
-    isHdbOrEcPurchase: true,
+    // MSR only applies to HDB/EC purchases — a private (non-EC) purchase is TDSR-only.
+    isHdbOrEcPurchase: input.flatDestination === 'HDB',
     bankActualRate: input.bankActualRate,
     buyerAges: input.buyerAges,
     // The old loan is only actually redeemed once the sale completes (see sell leg above) — if
@@ -130,7 +151,11 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     stampDuty: bsd + absd.absd,
   });
 
-  const fees = computeBuyFees({ kind: 'HDB', path: input.flatSource, price: input.price });
+  const fees = computeBuyFees({
+    kind: input.flatDestination === 'HDB' ? 'HDB' : 'PRIVATE',
+    path: input.flatDestination === 'HDB' ? input.flatSource! : 'RESALE', // private buy is resale-only for now
+    price: input.price,
+  });
 
   const events: CashflowEvent[] = [
     {

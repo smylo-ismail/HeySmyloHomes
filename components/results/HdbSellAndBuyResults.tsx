@@ -38,9 +38,15 @@ export function HdbSellAndBuyResults({
 
   const sellsFirst = estimatedSellCompletionDate <= estimatedBuyCompletionDate;
 
+  // A private buy has no flatSource/flatType (resale-only, see hdbTimelines.ts) — everything
+  // display-facing that used to read those HDB-only fields branches on flatDestination first.
+  const buyKindLabel =
+    input.flatDestination === 'PRIVATE' ? 'private resale' : input.flatSource === 'BTO' ? 'BTO' : 'resale';
+  const buyHeadingLabel = input.flatDestination === 'PRIVATE' ? 'private resale property' : `${input.flatType} ${buyKindLabel}`;
+
   const summary = [
     `sell ${input.sellFlatType} at ${formatSgd(input.sellPrice)}`,
-    `buy ${input.flatSource} ${input.flatType} at ${formatSgd(input.price)}`,
+    `buy ${buyHeadingLabel} at ${formatSgd(input.price)}`,
     `grants ${formatSgd(grants.total)}`,
     `loan ${formatSgd(loan.loanGranted)} (${loan.bindingConstraint}-bound)`,
     `cash required ${formatSgd(totalCashRequired)}`,
@@ -57,9 +63,9 @@ export function HdbSellAndBuyResults({
 
   const buyTimelineSection = (
     <section key="buy-timeline">
-      <MicroLabel>process timeline — buying your {input.flatSource === 'BTO' ? 'BTO' : 'resale'}</MicroLabel>
+      <MicroLabel>process timeline — buying your {buyKindLabel}</MicroLabel>
       <div className="mt-2">
-        <Timeline stages={getBuyTimeline(input.flatSource, input.buyAnchorDate)} />
+        <Timeline stages={getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate)} />
       </div>
     </section>
   );
@@ -69,7 +75,7 @@ export function HdbSellAndBuyResults({
       <div>
         <MicroLabel>hdb sell &amp; buy — results</MicroLabel>
         <h1 className="font-display text-2xl mt-1">
-          {input.sellFlatType} → {input.flatSource === 'BTO' ? 'BTO' : 'Resale'} {input.flatType}
+          {input.sellFlatType} → {input.flatDestination === 'PRIVATE' ? 'Private resale' : `${input.flatSource === 'BTO' ? 'BTO' : 'Resale'} ${input.flatType}`}
         </h1>
       </div>
 
@@ -92,14 +98,16 @@ export function HdbSellAndBuyResults({
         </div>
       </section>
 
-      <section>
-        <Figure label="grants total — credited to CPF OA" value={grants.total} />
-        <div className="mt-4">
-          <RuledRow label="CHG (CPF Housing Grant)" value={grants.chg} />
-          <RuledRow label="EHG (Enhanced Housing Grant)" value={grants.ehg} />
-          <RuledRow label="PHG (Proximity Housing Grant)" value={grants.phg} />
-        </div>
-      </section>
+      {input.flatDestination === 'HDB' && (
+        <section>
+          <Figure label="grants total — credited to CPF OA" value={grants.total} />
+          <div className="mt-4">
+            <RuledRow label="CHG (CPF Housing Grant)" value={grants.chg} />
+            <RuledRow label="EHG (Enhanced Housing Grant)" value={grants.ehg} />
+            <RuledRow label="PHG (Proximity Housing Grant)" value={grants.phg} />
+          </div>
+        </section>
+      )}
 
       <section>
         <MicroLabel>stamp duties</MicroLabel>

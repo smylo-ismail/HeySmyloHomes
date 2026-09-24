@@ -5,6 +5,8 @@ import {
   getBtoBuyTimeline,
   getBtoBuyTimelineFromApplication,
   getBuyTimeline,
+  getPrivateResaleBuyTimeline,
+  getPrivateResaleBuyTimelineFromOtp,
   getResaleBuyTimeline,
   getResaleBuyTimelineFromOtp,
   getResaleSellTimeline,
@@ -49,8 +51,12 @@ describe('getBtoBuyTimeline', () => {
 
 describe('getBuyTimeline', () => {
   it('routes BTO to the BTO timeline and RESALE to the resale timeline', () => {
-    expect(getBuyTimeline('BTO')).toEqual(getBtoBuyTimeline());
-    expect(getBuyTimeline('RESALE')).toEqual(getResaleBuyTimeline());
+    expect(getBuyTimeline('HDB', 'BTO')).toEqual(getBtoBuyTimeline());
+    expect(getBuyTimeline('HDB', 'RESALE')).toEqual(getResaleBuyTimeline());
+  });
+
+  it('routes PRIVATE to the private resale timeline regardless of flatSource', () => {
+    expect(getBuyTimeline('PRIVATE', undefined)).toEqual(getPrivateResaleBuyTimeline());
   });
 });
 
@@ -130,22 +136,50 @@ describe('getBtoBuyTimelineFromApplication', () => {
 
 describe('getBuyTimeline with an anchor date', () => {
   it('routes to the dated variant for each flat source when an anchor is given', () => {
-    expect(getBuyTimeline('RESALE', '2027-01-01')).toEqual(getResaleBuyTimelineFromOtp('2027-01-01'));
-    expect(getBuyTimeline('BTO', '2027-01-01')).toEqual(getBtoBuyTimelineFromApplication('2027-01-01'));
+    expect(getBuyTimeline('HDB', 'RESALE', '2027-01-01')).toEqual(getResaleBuyTimelineFromOtp('2027-01-01'));
+    expect(getBuyTimeline('HDB', 'BTO', '2027-01-01')).toEqual(getBtoBuyTimelineFromApplication('2027-01-01'));
+    expect(getBuyTimeline('PRIVATE', undefined, '2027-01-01')).toEqual(getPrivateResaleBuyTimelineFromOtp('2027-01-01'));
   });
 
   it('falls back to the undated variant when no anchor is given', () => {
-    expect(getBuyTimeline('RESALE')).toEqual(getResaleBuyTimeline());
+    expect(getBuyTimeline('HDB', 'RESALE')).toEqual(getResaleBuyTimeline());
+  });
+});
+
+// OTP granted 1 Jan 2027 -> option ends 15 Jan (14 days) -> completion 12 Mar-9 Apr (8-12wks further).
+describe('getPrivateResaleBuyTimelineFromOtp', () => {
+  const stages = getPrivateResaleBuyTimelineFromOtp('2027-01-01');
+
+  it('uses a 14-day option period, not HDB’s 21', () => {
+    const optionStage = stages.find((s) => s.name.startsWith('Option period ends'));
+    expect(optionStage?.date).toBe('15 Jan 2027');
+  });
+
+  it('has no HDB application/approval stage — just OTP then completion', () => {
+    expect(stages.map((s) => s.name)).toEqual([
+      'OTP granted',
+      'Option period ends (exercise by)',
+      'Completion (estimated)',
+    ]);
+  });
+
+  it('widens completion into a range rather than a false-precision single date', () => {
+    const completion = stages.find((s) => s.name === 'Completion (estimated)');
+    expect(completion?.date).toBe('12 Mar 2027 – 9 Apr 2027');
   });
 });
 
 describe('completion-date estimates (for cashflow sequencing, not display)', () => {
   it('resale: uses the latest (most conservative) end of the approval range', () => {
     expect(estimateSellCompletionDate('2027-01-01')).toBe('2027-04-02');
-    expect(estimateBuyCompletionDate('RESALE', '2027-01-01')).toBe('2027-04-02');
+    expect(estimateBuyCompletionDate('HDB', 'RESALE', '2027-01-01')).toBe('2027-04-02');
   });
 
   it('BTO: uses the midpoint of the sourced 3-5 year construction range', () => {
-    expect(estimateBuyCompletionDate('BTO', '2027-01-01')).toBe('2031-01-01');
+    expect(estimateBuyCompletionDate('HDB', 'BTO', '2027-01-01')).toBe('2031-01-01');
+  });
+
+  it('private resale: uses the latest (most conservative) end of the completion range', () => {
+    expect(estimateBuyCompletionDate('PRIVATE', undefined, '2027-01-01')).toBe('2027-04-09');
   });
 });
