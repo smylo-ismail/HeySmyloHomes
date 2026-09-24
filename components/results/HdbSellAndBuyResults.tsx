@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { HdbSellAndBuyInput } from '@/lib/schema/hdbSellAndBuy';
 import { runHdbSellAndBuy } from '@/lib/calc/hdbSellAndBuy';
 import { Figure } from '@/components/Figure';
@@ -20,6 +20,11 @@ export function HdbSellAndBuyResults({
   input: HdbSellAndBuyInput;
   onEdit: () => void;
 }) {
+  // Which side (left/right) each leg renders on in the two-column layout at sm: and up — purely
+  // a presentation choice for whoever's narrating this to a client, so it's local UI state, not
+  // part of the scenario input.
+  const [sidesReversed, setSidesReversed] = useState(false);
+
   const result = useMemo(() => runHdbSellAndBuy(input), [input]);
   const {
     sell,
@@ -138,14 +143,27 @@ export function HdbSellAndBuyResults({
       </section>
 
       <section>
-        <MicroLabel>process timeline — selling &amp; buying</MicroLabel>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <MicroLabel>process timeline — selling &amp; buying</MicroLabel>
+          <button
+            type="button"
+            onClick={() => setSidesReversed((r) => !r)}
+            className="hidden text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink sm:inline"
+          >
+            swap sides
+          </button>
+        </div>
         <p className="mt-1 text-xs text-ink/50 dark:text-dark-ink/50">
           {sellsFirst
             ? 'your sale is on track to complete before your purchase.'
             : 'your purchase is on track to complete before your sale — see the warnings below.'}
+          {' '}
+          <span className="hidden sm:inline">
+            {sidesReversed ? '○ selling · ● buying' : '● selling · ○ buying'}
+          </span>
         </p>
         <div className="mt-2">
-          <Timeline stages={combinedStages} />
+          <Timeline stages={combinedStages} reversed={sidesReversed} />
         </div>
       </section>
 

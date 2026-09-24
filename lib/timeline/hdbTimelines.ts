@@ -15,6 +15,9 @@ export interface TimelineStage {
   /** Which leg of a combined (sell + buy) timeline this stage belongs to — set by
    *  mergeTimelines, not by the single-leg builders above. */
   tag?: string;
+  /** Index into the `legs` array passed to mergeTimelines (0 or 1) — lets the Timeline
+   *  component give each leg a distinct dot style/side without string-matching `tag`. */
+  legIndex?: 0 | 1;
 }
 
 function iso(d: Date): string {
@@ -30,7 +33,9 @@ function iso(d: Date): string {
 export function mergeTimelines(
   legs: { tag: string; stages: TimelineStage[] }[]
 ): TimelineStage[] {
-  const tagged = legs.flatMap(({ tag, stages }) => stages.map((s) => ({ ...s, tag })));
+  const tagged = legs.flatMap(({ tag, stages }, legIndex) =>
+    stages.map((s) => ({ ...s, tag, legIndex: legIndex as 0 | 1 }))
+  );
   return tagged
     .map((stage, i) => ({ stage, i })) // stable sort: preserve original order among equal/missing keys
     .sort((a, b) => {
