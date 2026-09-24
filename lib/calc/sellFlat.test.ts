@@ -13,10 +13,10 @@ describe('computeSellFlat', () => {
     const result = computeSellFlat(baseInput);
     expect(result.cpfRefund.totalRefund).toBe(170_000);
     expect(result.resaleLevy.levy).toBe(0);
-    expect(result.sellFees.conveyancing).toBe(400);
+    expect(result.sellFees.conveyancing).toBe(2_400);
     expect(result.sellFees.commission).toBeCloseTo(500_000 * 0.02 * 1.09);
-    // 500,000 - 100,000 (loan) - 170,000 (cpf) - 0 (levy) - 400 - 10,900 (fees)
-    expect(result.netCashProceeds).toBeCloseTo(218_700);
+    // 500,000 - 100,000 (loan) - 170,000 (cpf) - 0 (levy) - 2,400 - 10,900 (fees)
+    expect(result.netCashProceeds).toBeCloseTo(216_700);
     expect(result.warnings).toEqual([]);
   });
 
@@ -26,7 +26,7 @@ describe('computeSellFlat', () => {
       resaleLevy: { isSecondSubsidisedFlat: true, flatTypeSold: '4R' },
     });
     expect(result.resaleLevy.levy).toBe(40_000);
-    expect(result.netCashProceeds).toBeCloseTo(218_700 - 40_000);
+    expect(result.netCashProceeds).toBeCloseTo(216_700 - 40_000);
   });
 
   it('CPF accrued interest compounds via years when no override is given', () => {
