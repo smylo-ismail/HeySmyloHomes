@@ -51,6 +51,31 @@ function weeksRangeLabel([min, max]: readonly [number, number]): string {
   return min === max ? `${min} weeks` : `${min}-${max} weeks`;
 }
 
+function daysLabel(n: number): string {
+  return `${n} day${n === 1 ? '' : 's'}`;
+}
+
+/** User-overridable resale process durations, per case — everything after "find a flat" is
+ *  HDB's own typical processing time or an inter-party agreement, not a fixed rule, so an agent
+ *  modeling a specific known case can override any of these instead of living with the
+ *  config/rates.ts defaults. Undefined fields fall back to RATES.timeline.hdbResaleBuy. */
+export interface ResaleTiming {
+  otpDays?: number;
+  applicationDays?: number;
+  acceptanceWeeks?: number;
+  completionWeeksAfterAcceptance?: number;
+}
+
+function resolveTiming(timing?: ResaleTiming) {
+  const defaults = RATES.timeline.hdbResaleBuy;
+  return {
+    otpDays: timing?.otpDays ?? defaults.otpDays,
+    applicationDays: timing?.applicationDays ?? defaults.applicationDays,
+    acceptanceWeeks: timing?.acceptanceWeeks ?? defaults.acceptanceWeeks,
+    completionWeeksAfterAcceptance: timing?.completionWeeksAfterAcceptance ?? defaults.completionWeeksAfterAcceptance,
+  };
+}
+
 function fmt(d: Date): string {
   return format(d, 'd MMM yyyy');
 }
@@ -59,8 +84,9 @@ function dateRangeLabel(min: Date, max: Date): string {
   return min.getTime() === max.getTime() ? fmt(min) : `${fmt(min)} – ${fmt(max)}`;
 }
 
-export function getResaleBuyTimeline(): TimelineStage[] {
+export function getResaleBuyTimeline(timing?: ResaleTiming): TimelineStage[] {
   const t = RATES.timeline.hdbResaleBuy;
+  const r = resolveTiming(timing);
   return [
     {
       name: 'HFE letter',
@@ -75,23 +101,23 @@ export function getResaleBuyTimeline(): TimelineStage[] {
     },
     {
       name: 'Grant & exercise Option to Purchase (OTP)',
-      duration: `${t.otpDays} days`,
+      duration: `${r.otpDays} days`,
       description:
-        'Fixed by law: the option period runs from when the seller grants the OTP, including weekends and public holidays.',
+        'Fixed by law: the option period runs from when the seller grants the OTP ($1,000 option fee), including weekends and public holidays, to when you exercise it ($4,000 exercise fee). You can commission the flat valuation in parallel — typically $120, 7-14 working days.',
     },
     {
-      name: 'Resale application & valuation',
-      duration: weeksRangeLabel(t.applicationAndValuationWeeks),
-      description: 'You and the seller submit the resale application; HDB arranges the flat valuation.',
+      name: 'Resale application submitted',
+      duration: daysLabel(r.applicationDays),
+      description: 'You and the seller submit the resale application to HDB — timing as agreed on the OTP, typically about a week after exercising.',
     },
     {
-      name: 'HDB approval',
-      duration: weeksRangeLabel(t.hdbApprovalWeeks),
-      description: 'HDB processes the application, including any grant and loan approvals.',
+      name: 'HDB notifies application acceptance',
+      duration: weeksRangeLabel([r.acceptanceWeeks, r.acceptanceWeeks]),
+      description: 'HDB reviews and accepts the application, sets your final appointment date, and both parties log in to acknowledge the required documents.',
     },
     {
       name: 'Resale completion',
-      duration: '—',
+      duration: weeksRangeLabel([r.completionWeeksAfterAcceptance, r.completionWeeksAfterAcceptance]),
       description: 'Final payment and handover of keys.',
     },
   ];
@@ -135,12 +161,13 @@ export function getBtoBuyTimeline(): TimelineStage[] {
   ];
 }
 
-export function getResaleSellTimeline(): TimelineStage[] {
-  const t = RATES.timeline.hdbResaleSell;
+export function getResaleSellTimeline(timing?: ResaleTiming): TimelineStage[] {
+  const sell = RATES.timeline.hdbResaleSell;
+  const r = resolveTiming(timing);
   return [
     {
       name: 'Register Intent to Sell',
-      duration: `${t.intentToSellCoolingDays}-day cooling-off`,
+      duration: `${sell.intentToSellCoolingDays}-day cooling-off`,
       description: 'You can only grant an Option to Purchase to a buyer after this cooling-off period.',
     },
     {
@@ -150,23 +177,23 @@ export function getResaleSellTimeline(): TimelineStage[] {
     },
     {
       name: 'Buyer exercises Option to Purchase (OTP)',
-      duration: `${t.otpDays} days`,
+      duration: `${r.otpDays} days`,
       description:
-        'Fixed by law: the option period runs from when you grant the OTP, including weekends and public holidays.',
+        'Fixed by law: the option period runs from when you grant the OTP ($1,000 option fee received), including weekends and public holidays, to when your buyer exercises it ($4,000 exercise fee).',
     },
     {
-      name: 'Resale application & valuation',
-      duration: weeksRangeLabel(t.applicationAndValuationWeeks),
-      description: 'You and the buyer submit the resale application; HDB arranges the flat valuation.',
+      name: 'Resale application submitted',
+      duration: daysLabel(r.applicationDays),
+      description: 'You and your buyer submit the resale application to HDB — timing as agreed on the OTP, typically about a week after exercising.',
     },
     {
-      name: 'HDB approval',
-      duration: weeksRangeLabel(t.hdbApprovalWeeks),
-      description: 'HDB processes the application, including any of the buyer’s grant and loan approvals.',
+      name: 'HDB notifies application acceptance',
+      duration: weeksRangeLabel([r.acceptanceWeeks, r.acceptanceWeeks]),
+      description: 'HDB reviews and accepts the application, including any of the buyer’s grant and loan approvals.',
     },
     {
       name: 'Resale completion',
-      duration: '—',
+      duration: weeksRangeLabel([r.completionWeeksAfterAcceptance, r.completionWeeksAfterAcceptance]),
       description: 'Final payment received and keys handed over.',
     },
   ];
@@ -177,83 +204,91 @@ interface ResaleOtpLabels {
   otpDescription: string;
   optionEndDescription: string;
   applicationDescription: string;
-  approvalDescription: string;
+  acceptanceDescription: string;
   completionName: string;
   completionDescription: string;
 }
 
-/** Shared date math for a resale timeline anchored on the date an OTP was/will be granted —
- *  the option period is legally fixed (exact date), everything after it widens into a range
- *  since HDB's own application/approval windows are themselves ranges, not fixed durations. */
-function buildResaleTimelineFromOtp(otpDate: string, labels: ResaleOtpLabels): TimelineStage[] {
-  const t = RATES.timeline.hdbResaleBuy; // same application/approval windows for buy and sell sides
+/** Shared date math for a resale timeline anchored on the date an OTP was/will be granted. Every
+ *  stage after the option period is a single-figure gap (not a range) — see
+ *  config/rates.ts's hdbResaleBuy comment for why these replaced the previous blended
+ *  application/approval ranges. */
+function buildResaleTimelineFromOtp(
+  otpDate: string,
+  labels: ResaleOtpLabels,
+  timing?: ResaleTiming
+): TimelineStage[] {
+  const r = resolveTiming(timing); // same timing for buy and sell sides
   const otp = parseISO(otpDate);
-  const optionEnd = addDays(otp, t.otpDays);
-  const appMin = addWeeks(optionEnd, t.applicationAndValuationWeeks[0]);
-  const appMax = addWeeks(optionEnd, t.applicationAndValuationWeeks[1]);
-  const approvalMin = addWeeks(appMin, t.hdbApprovalWeeks[0]);
-  const approvalMax = addWeeks(appMax, t.hdbApprovalWeeks[1]);
+  const optionEnd = addDays(otp, r.otpDays);
+  const applicationDate = addDays(optionEnd, r.applicationDays);
+  const acceptanceDate = addWeeks(applicationDate, r.acceptanceWeeks);
+  const completionDate = addWeeks(acceptanceDate, r.completionWeeksAfterAcceptance);
 
   return [
     { name: labels.otpName, duration: fmt(otp), date: fmt(otp), sortKey: iso(otp), description: labels.otpDescription },
     {
       name: 'Option period ends (exercise by)',
-      duration: `${t.otpDays} days after OTP`,
+      duration: `${r.otpDays} days after OTP`,
       date: fmt(optionEnd),
       sortKey: iso(optionEnd),
       description: labels.optionEndDescription,
     },
     {
-      name: 'Resale application & valuation',
-      duration: weeksRangeLabel(t.applicationAndValuationWeeks),
-      date: dateRangeLabel(appMin, appMax),
-      sortKey: iso(appMin),
+      name: 'Resale application submitted',
+      duration: daysLabel(r.applicationDays),
+      date: fmt(applicationDate),
+      sortKey: iso(applicationDate),
       description: labels.applicationDescription,
     },
     {
-      name: 'HDB approval',
-      duration: weeksRangeLabel(t.hdbApprovalWeeks),
-      date: dateRangeLabel(approvalMin, approvalMax),
-      sortKey: iso(approvalMin),
-      description: labels.approvalDescription,
+      name: 'HDB notifies application acceptance',
+      duration: weeksRangeLabel([r.acceptanceWeeks, r.acceptanceWeeks]),
+      date: fmt(acceptanceDate),
+      sortKey: iso(acceptanceDate),
+      description: labels.acceptanceDescription,
     },
     {
-      // A single date, not a range — matches estimateBuyCompletionDate/estimateSellCompletionDate
-      // below, which use this same upper bound as the conservative completion estimate. Showing
-      // completion as the identical range as HDB approval read as the same milestone twice.
       name: labels.completionName,
-      duration: '—',
-      date: fmt(approvalMax),
-      sortKey: iso(approvalMax),
+      duration: weeksRangeLabel([r.completionWeeksAfterAcceptance, r.completionWeeksAfterAcceptance]),
+      date: fmt(completionDate),
+      sortKey: iso(completionDate),
       description: labels.completionDescription,
     },
   ];
 }
 
-export function getResaleBuyTimelineFromOtp(otpDate: string): TimelineStage[] {
-  return buildResaleTimelineFromOtp(otpDate, {
-    otpName: 'OTP granted',
-    otpDescription: 'The date the seller granted you the Option to Purchase.',
-    optionEndDescription:
-      'Fixed by law — 21 calendar days from grant, including weekends and public holidays. Exercise the option by this date.',
-    applicationDescription: 'You and the seller submit the resale application; HDB arranges the flat valuation.',
-    approvalDescription: 'HDB processes the application, including any grant and loan approvals.',
-    completionName: 'Resale completion (estimated)',
-    completionDescription: 'Final payment and handover of keys.',
-  });
+export function getResaleBuyTimelineFromOtp(otpDate: string, timing?: ResaleTiming): TimelineStage[] {
+  return buildResaleTimelineFromOtp(
+    otpDate,
+    {
+      otpName: 'OTP granted',
+      otpDescription:
+        'The date the seller granted you the Option to Purchase ($1,000 option fee). You can commission the flat valuation in parallel — typically $120, 7-14 working days.',
+      optionEndDescription: 'Fixed by law — 21 calendar days from grant, including weekends and public holidays. Exercise by this date ($4,000 exercise fee).',
+      applicationDescription: 'You and the seller submit the resale application to HDB — timing as agreed on the OTP.',
+      acceptanceDescription: 'HDB reviews and accepts the application, sets your final appointment date, and both parties log in to acknowledge the required documents.',
+      completionName: 'Resale completion (estimated)',
+      completionDescription: 'Final payment and handover of keys.',
+    },
+    timing
+  );
 }
 
-export function getResaleSellTimelineFromOtp(otpDate: string): TimelineStage[] {
-  return buildResaleTimelineFromOtp(otpDate, {
-    otpName: 'OTP granted to buyer',
-    otpDescription: 'The date you granted your buyer the Option to Purchase.',
-    optionEndDescription:
-      'Fixed by law — 21 calendar days from grant, including weekends and public holidays. Your buyer must exercise by this date.',
-    applicationDescription: 'You and the buyer submit the resale application; HDB arranges the flat valuation.',
-    approvalDescription: 'HDB processes the application, including any of the buyer’s grant and loan approvals.',
-    completionName: 'Resale completion (estimated)',
-    completionDescription: 'Final payment received and keys handed over.',
-  });
+export function getResaleSellTimelineFromOtp(otpDate: string, timing?: ResaleTiming): TimelineStage[] {
+  return buildResaleTimelineFromOtp(
+    otpDate,
+    {
+      otpName: 'OTP granted to buyer',
+      otpDescription: 'The date you granted your buyer the Option to Purchase ($1,000 option fee received). Your buyer can commission a valuation report in parallel.',
+      optionEndDescription: 'Fixed by law — 21 calendar days from grant, including weekends and public holidays. Your buyer must exercise by this date ($4,000 exercise fee).',
+      applicationDescription: 'You and your buyer submit the resale application to HDB — timing as agreed on the OTP.',
+      acceptanceDescription: 'HDB reviews and accepts the application, including any of the buyer’s grant and loan approvals.',
+      completionName: 'Resale completion (estimated)',
+      completionDescription: 'Final payment received and keys handed over.',
+    },
+    timing
+  );
 }
 
 /** Only the ballot-result window is reliably derivable from the application date — everything
@@ -336,20 +371,75 @@ export function getPrivateResaleBuyTimelineFromOtp(otpDate: string): TimelineSta
   ];
 }
 
+/** Appends renovation stages after a buy leg's timeline, if the buyer supplied an expected
+ *  duration — optional, since not everyone renovates and the actual scope/timing is entirely
+ *  case-specific (contractor availability, permit processing, extent of works). When a concrete
+ *  completion date exists (resale/private), renovation is scheduled from the day after it; a BTO
+ *  timeline never carries a display completion date (see getBtoBuyTimelineFromApplication), so
+ *  renovation there stays duration-only rather than chaining a date off a fabricated estimate. */
+export function appendRenovation(
+  stages: TimelineStage[],
+  completionDateIso: string | undefined,
+  renovationWeeks: number
+): TimelineStage[] {
+  if (completionDateIso) {
+    const start = addDays(parseISO(completionDateIso), 1);
+    const end = addWeeks(start, renovationWeeks);
+    return [
+      ...stages,
+      {
+        name: 'Renovation starts',
+        duration: fmt(start),
+        date: fmt(start),
+        sortKey: iso(start),
+        description: 'Permits and works begin the day after completion.',
+      },
+      {
+        name: 'Renovation complete — ready to move in',
+        duration: weeksRangeLabel([renovationWeeks, renovationWeeks]),
+        date: fmt(end),
+        sortKey: iso(end),
+        description: 'Estimated renovation duration — actual timing depends on scope of works, HDB permit processing, and contractor availability.',
+      },
+    ];
+  }
+  return [
+    ...stages,
+    {
+      name: 'Renovation',
+      duration: weeksRangeLabel([renovationWeeks, renovationWeeks]),
+      description: 'Estimated renovation duration after key collection — actual timing depends on scope of works, HDB permit processing, and contractor availability.',
+    },
+  ];
+}
+
 export type FlatDestination = 'HDB' | 'PRIVATE';
 
 export function getBuyTimeline(
   destination: FlatDestination,
   flatSource: FlatSource | undefined,
-  anchorDate?: string
+  anchorDate?: string,
+  renovationWeeks?: number,
+  timing?: ResaleTiming
 ): TimelineStage[] {
+  let stages: TimelineStage[];
+  // BTO's display timeline never carries a completion date (only ballot result is dated — see
+  // getBtoBuyTimelineFromApplication), so renovation there always stays duration-only even
+  // though estimateBuyCompletionDate can produce a (cashflow-only) fabricated midpoint for it.
+  let completionDateIso: string | undefined;
+
   if (destination === 'PRIVATE') {
-    return anchorDate ? getPrivateResaleBuyTimelineFromOtp(anchorDate) : getPrivateResaleBuyTimeline();
+    stages = anchorDate ? getPrivateResaleBuyTimelineFromOtp(anchorDate) : getPrivateResaleBuyTimeline();
+    completionDateIso = anchorDate ? estimateBuyCompletionDate(destination, flatSource, anchorDate, timing) : undefined;
+  } else if (flatSource === 'BTO') {
+    stages = anchorDate ? getBtoBuyTimelineFromApplication(anchorDate) : getBtoBuyTimeline();
+    completionDateIso = undefined;
+  } else {
+    stages = anchorDate ? getResaleBuyTimelineFromOtp(anchorDate, timing) : getResaleBuyTimeline(timing);
+    completionDateIso = anchorDate ? estimateBuyCompletionDate(destination, flatSource, anchorDate, timing) : undefined;
   }
-  if (anchorDate) {
-    return flatSource === 'BTO' ? getBtoBuyTimelineFromApplication(anchorDate) : getResaleBuyTimelineFromOtp(anchorDate);
-  }
-  return flatSource === 'BTO' ? getBtoBuyTimeline() : getResaleBuyTimeline();
+
+  return renovationWeeks ? appendRenovation(stages, completionDateIso, renovationWeeks) : stages;
 }
 
 /** Conservative (latest-estimate) completion date, for feeding into cashflow sequencing —
@@ -357,7 +447,8 @@ export function getBuyTimeline(
 export function estimateBuyCompletionDate(
   destination: FlatDestination,
   flatSource: FlatSource | undefined,
-  anchorDate: string
+  anchorDate: string,
+  timing?: ResaleTiming
 ): string {
   const anchor = parseISO(anchorDate);
   if (destination === 'PRIVATE') {
@@ -373,18 +464,20 @@ export function estimateBuyCompletionDate(
     const midpointYears = (t.constructionYears[0] + t.constructionYears[1]) / 2;
     return addYears(anchor, midpointYears).toISOString().slice(0, 10);
   }
-  const t = RATES.timeline.hdbResaleBuy;
-  const optionEnd = addDays(anchor, t.otpDays);
-  const appMax = addWeeks(optionEnd, t.applicationAndValuationWeeks[1]);
-  const approvalMax = addWeeks(appMax, t.hdbApprovalWeeks[1]);
-  return approvalMax.toISOString().slice(0, 10);
+  const r = resolveTiming(timing);
+  const optionEnd = addDays(anchor, r.otpDays);
+  const applicationDate = addDays(optionEnd, r.applicationDays);
+  const acceptanceDate = addWeeks(applicationDate, r.acceptanceWeeks);
+  const completionDate = addWeeks(acceptanceDate, r.completionWeeksAfterAcceptance);
+  return completionDate.toISOString().slice(0, 10);
 }
 
-export function estimateSellCompletionDate(otpDate: string): string {
-  const t = RATES.timeline.hdbResaleBuy;
+export function estimateSellCompletionDate(otpDate: string, timing?: ResaleTiming): string {
+  const r = resolveTiming(timing);
   const otp = parseISO(otpDate);
-  const optionEnd = addDays(otp, t.otpDays);
-  const appMax = addWeeks(optionEnd, t.applicationAndValuationWeeks[1]);
-  const approvalMax = addWeeks(appMax, t.hdbApprovalWeeks[1]);
-  return approvalMax.toISOString().slice(0, 10);
+  const optionEnd = addDays(otp, r.otpDays);
+  const applicationDate = addDays(optionEnd, r.applicationDays);
+  const acceptanceDate = addWeeks(applicationDate, r.acceptanceWeeks);
+  const completionDate = addWeeks(acceptanceDate, r.completionWeeksAfterAcceptance);
+  return completionDate.toISOString().slice(0, 10);
 }

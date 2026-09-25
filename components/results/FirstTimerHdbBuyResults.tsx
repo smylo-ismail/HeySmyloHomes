@@ -11,22 +11,40 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { FundingBreakdown } from '@/components/FundingBreakdown';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
-import { DateField } from '@/components/wizard/fields';
+import { PaymentMilestones } from '@/components/PaymentMilestones';
+import { DateField, NumberField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getBuyTimeline } from '@/lib/timeline/hdbTimelines';
+import { getBuyTimeline, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
 export function FirstTimerHdbBuyResults({
   input,
   onEdit,
   onChangeAnchorDate,
+  onChangeRenovationWeeks,
+  onChangeOptionPeriodDays,
+  onChangeApplicationDays,
+  onChangeAcceptanceWeeks,
+  onChangeCompletionWeeksAfterAcceptance,
 }: {
   input: FirstTimerHdbBuyInput;
   onEdit: () => void;
   onChangeAnchorDate: (date: string | undefined) => void;
+  onChangeRenovationWeeks: (weeks: number | undefined) => void;
+  onChangeOptionPeriodDays: (days: number | undefined) => void;
+  onChangeApplicationDays: (days: number | undefined) => void;
+  onChangeAcceptanceWeeks: (weeks: number | undefined) => void;
+  onChangeCompletionWeeksAfterAcceptance: (weeks: number | undefined) => void;
 }) {
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
+
+  const timing: ResaleTiming = {
+    otpDays: input.optionPeriodDays,
+    applicationDays: input.applicationDays,
+    acceptanceWeeks: input.acceptanceWeeks,
+    completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
+  };
 
   const allWarnings = [...grants.warnings, ...loan.warnings];
 
@@ -120,15 +138,48 @@ export function FirstTimerHdbBuyResults({
 
       <section>
         <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
-        <div className="mt-3 max-w-[12rem]">
-          <DateField
-            label={input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
-            value={input.timelineAnchorDate}
-            onChange={onChangeAnchorDate}
-          />
+        <div className="mt-3 flex flex-wrap gap-6">
+          <div className="w-36">
+            <DateField
+              label={input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
+              value={input.timelineAnchorDate}
+              onChange={onChangeAnchorDate}
+            />
+          </div>
+          <div className="w-36">
+            <NumberField
+              label="renovation (weeks) — optional"
+              value={input.expectedRenovationWeeks}
+              onChange={onChangeRenovationWeeks}
+              placeholder="not renovating? leave blank"
+            />
+          </div>
         </div>
+        {input.flatSource === 'RESALE' && (
+          <details className="mt-3">
+            <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+              edit process timing
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-6">
+              <div className="w-36">
+                <NumberField label="option period (days)" value={input.optionPeriodDays} onChange={onChangeOptionPeriodDays} placeholder="21" />
+              </div>
+              <div className="w-36">
+                <NumberField label="application (days after exercise)" value={input.applicationDays} onChange={onChangeApplicationDays} placeholder="7" />
+              </div>
+              <div className="w-36">
+                <NumberField label="acceptance (weeks after application)" value={input.acceptanceWeeks} onChange={onChangeAcceptanceWeeks} placeholder="4" />
+              </div>
+              <div className="w-36">
+                <NumberField label="completion (weeks after acceptance)" value={input.completionWeeksAfterAcceptance} onChange={onChangeCompletionWeeksAfterAcceptance} placeholder="8" />
+              </div>
+            </div>
+          </details>
+        )}
         <div className="mt-4">
-          <Timeline stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate)} />
+          <Timeline
+            stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate, input.expectedRenovationWeeks, timing)}
+          />
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
           {input.timelineAnchorDate
@@ -136,6 +187,41 @@ export function FirstTimerHdbBuyResults({
             : 'durations are HDB’s typical ranges, not fixed dates — add a date above to see estimated calendar dates.'}
         </p>
       </section>
+
+      {input.flatSource === 'RESALE' && (
+        <section>
+          <MicroLabel>payment milestones</MicroLabel>
+          <div className="mt-3">
+            <PaymentMilestones
+              groups={[
+                {
+                  heading: 'option & exercise fee',
+                  rows: [
+                    { label: 'paid to seller', cash: fees.optionMoneyInitial + fees.optionMoneyExercise, total: fees.optionMoneyInitial + fees.optionMoneyExercise },
+                  ],
+                },
+                {
+                  heading: 'upon completion',
+                  rows: [
+                    {
+                      label: 'costs & fees (conveyancing, valuation, commission)',
+                      cash: fees.conveyancing + fees.valuation + fees.commission,
+                      total: fees.conveyancing + fees.valuation + fees.commission,
+                    },
+                    {
+                      label: 'balance purchase price & stamp duty',
+                      cpf: Math.min(cpf.cpfNeeded, cpf.cpfAvailable),
+                      cash: cpf.cashTopUp,
+                      loan: loan.loanGranted,
+                      total: Math.min(cpf.cpfNeeded, cpf.cpfAvailable) + cpf.cashTopUp + loan.loanGranted,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+        </section>
+      )}
 
       <WarningsPanel warnings={allWarnings} />
 

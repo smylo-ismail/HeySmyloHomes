@@ -102,6 +102,11 @@ export function FirstTimerHdbBuyWizard() {
         input={reviewParsed.data}
         onEdit={() => setSubmitted(false)}
         onChangeAnchorDate={(v) => patch({ timelineAnchorDate: v })}
+        onChangeRenovationWeeks={(v) => patch({ expectedRenovationWeeks: v })}
+        onChangeOptionPeriodDays={(v) => patch({ optionPeriodDays: v })}
+        onChangeApplicationDays={(v) => patch({ applicationDays: v })}
+        onChangeAcceptanceWeeks={(v) => patch({ acceptanceWeeks: v })}
+        onChangeCompletionWeeksAfterAcceptance={(v) => patch({ completionWeeksAfterAcceptance: v })}
       />
     );
   }
@@ -176,6 +181,19 @@ export function FirstTimerHdbBuyWizard() {
           label: draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
           value: formatDateReadable(draft.timelineAnchorDate),
         },
+        {
+          fieldKey: 'expectedRenovationWeeks',
+          label: 'renovation',
+          value: draft.expectedRenovationWeeks !== undefined ? `${draft.expectedRenovationWeeks} weeks` : 'not planned',
+        },
+        ...(draft.flatSource === 'RESALE'
+          ? [
+              { fieldKey: 'optionPeriodDays', label: 'option period', value: draft.optionPeriodDays !== undefined ? `${draft.optionPeriodDays} days` : 'default (21 days)' },
+              { fieldKey: 'applicationDays', label: 'resale application submitted', value: draft.applicationDays !== undefined ? `${draft.applicationDays} days after exercise` : 'default (7 days after exercise)' },
+              { fieldKey: 'acceptanceWeeks', label: 'HDB acceptance', value: draft.acceptanceWeeks !== undefined ? `${draft.acceptanceWeeks} weeks after application` : 'default (4 weeks after application)' },
+              { fieldKey: 'completionWeeksAfterAcceptance', label: 'completion', value: draft.completionWeeksAfterAcceptance !== undefined ? `${draft.completionWeeksAfterAcceptance} weeks after acceptance` : 'default (8 weeks after acceptance)' },
+            ]
+          : []),
       ],
     },
     {
@@ -321,6 +339,45 @@ export function FirstTimerHdbBuyWizard() {
               value={draft.timelineAnchorDate}
               onChange={(v) => patch({ timelineAnchorDate: v })}
             />
+            <NumberField
+              label="expected renovation duration (weeks) — optional"
+              value={draft.expectedRenovationWeeks}
+              onChange={(v) => patch({ expectedRenovationWeeks: v })}
+              placeholder="not renovating? leave blank"
+            />
+            {draft.flatSource === 'RESALE' && (
+              <details className="mt-2">
+                <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+                  advanced: customize resale process timing
+                </summary>
+                <div className="mt-3 space-y-4">
+                  <NumberField
+                    label="option period (days) — optional"
+                    value={draft.optionPeriodDays}
+                    onChange={(v) => patch({ optionPeriodDays: v })}
+                    placeholder="default: 21 days"
+                  />
+                  <NumberField
+                    label="resale application submitted (days after exercise) — optional"
+                    value={draft.applicationDays}
+                    onChange={(v) => patch({ applicationDays: v })}
+                    placeholder="default: 7 days — as agreed on the OTP"
+                  />
+                  <NumberField
+                    label="HDB notifies acceptance (weeks after application) — optional"
+                    value={draft.acceptanceWeeks}
+                    onChange={(v) => patch({ acceptanceWeeks: v })}
+                    placeholder="default: 4 weeks"
+                  />
+                  <NumberField
+                    label="completion (weeks after acceptance) — optional"
+                    value={draft.completionWeeksAfterAcceptance}
+                    onChange={(v) => patch({ completionWeeksAfterAcceptance: v })}
+                    placeholder="default: 8 weeks"
+                  />
+                </div>
+              </details>
+            )}
           </>
         )}
 
