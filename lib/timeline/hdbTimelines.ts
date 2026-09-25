@@ -8,6 +8,43 @@ export interface TimelineStage {
   description: string;
   /** Computed calendar date (or range), formatted for display — only set when an anchor date was given. */
   date?: string;
+  /** ISO date (yyyy-MM-dd), the start of this stage — only set alongside `date`. Exists purely
+   *  for mergeTimelines below to interleave two legs' stages in true chronological order; not
+   *  itself rendered. */
+  sortKey?: string;
+  /** Which leg of a combined (sell + buy) timeline this stage belongs to — set by
+   *  mergeTimelines, not by the single-leg builders above. */
+  tag?: string;
+  /** Index into the `legs` array passed to mergeTimelines (0 or 1) — lets the Timeline
+   *  component give each leg a distinct dot style/side without string-matching `tag`. */
+  legIndex?: 0 | 1;
+}
+
+function iso(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Interleaves two already-built leg timelines into one chronological sequence, tagging each
+ *  stage with which leg it came from — the client-facing view of a sell + buy scenario, showing
+ *  how the two processes actually overlap in calendar time rather than as two disconnected
+ *  lists. Stages without a computed date (e.g. BTO's construction/key-collection, which stay
+ *  duration-only — see getBtoBuyTimelineFromApplication) sort after every dated stage, in their
+ *  original relative order, since there's no real date to interleave them by. */
+export function mergeTimelines(
+  legs: { tag: string; stages: TimelineStage[] }[]
+): TimelineStage[] {
+  const tagged = legs.flatMap(({ tag, stages }, legIndex) =>
+    stages.map((s) => ({ ...s, tag, legIndex: legIndex as 0 | 1 }))
+  );
+  return tagged
+    .map((stage, i) => ({ stage, i })) // stable sort: preserve original order among equal/missing keys
+    .sort((a, b) => {
+      if (a.stage.sortKey === undefined && b.stage.sortKey === undefined) return a.i - b.i;
+      if (a.stage.sortKey === undefined) return 1;
+      if (b.stage.sortKey === undefined) return -1;
+      return a.stage.sortKey.localeCompare(b.stage.sortKey) || a.i - b.i;
+    })
+    .map(({ stage }) => stage);
 }
 
 function weeksRangeLabel([min, max]: readonly [number, number]): string {
@@ -158,23 +195,26 @@ function buildResaleTimelineFromOtp(otpDate: string, labels: ResaleOtpLabels): T
   const approvalMax = addWeeks(appMax, t.hdbApprovalWeeks[1]);
 
   return [
-    { name: labels.otpName, duration: fmt(otp), date: fmt(otp), description: labels.otpDescription },
+    { name: labels.otpName, duration: fmt(otp), date: fmt(otp), sortKey: iso(otp), description: labels.otpDescription },
     {
       name: 'Option period ends (exercise by)',
       duration: `${t.otpDays} days after OTP`,
       date: fmt(optionEnd),
+      sortKey: iso(optionEnd),
       description: labels.optionEndDescription,
     },
     {
       name: 'Resale application & valuation',
       duration: weeksRangeLabel(t.applicationAndValuationWeeks),
       date: dateRangeLabel(appMin, appMax),
+      sortKey: iso(appMin),
       description: labels.applicationDescription,
     },
     {
       name: 'HDB approval',
       duration: weeksRangeLabel(t.hdbApprovalWeeks),
       date: dateRangeLabel(approvalMin, approvalMax),
+      sortKey: iso(approvalMin),
       description: labels.approvalDescription,
     },
     {
@@ -184,6 +224,7 @@ function buildResaleTimelineFromOtp(otpDate: string, labels: ResaleOtpLabels): T
       name: labels.completionName,
       duration: '—',
       date: fmt(approvalMax),
+      sortKey: iso(approvalMax),
       description: labels.completionDescription,
     },
   ];
@@ -227,9 +268,9 @@ export function getBtoBuyTimelineFromApplication(applicationDate: string): Timel
   const stages = getBtoBuyTimeline();
   return stages.map((stage) =>
     stage.name === 'Launch & application'
-      ? { ...stage, date: fmt(application) }
+      ? { ...stage, date: fmt(application), sortKey: iso(application) }
       : stage.name === 'Ballot result'
-        ? { ...stage, date: dateRangeLabel(ballotMin, ballotMax) }
+        ? { ...stage, date: dateRangeLabel(ballotMin, ballotMax), sortKey: iso(ballotMin) }
         : stage
   );
 }
@@ -275,18 +316,21 @@ export function getPrivateResaleBuyTimelineFromOtp(otpDate: string): TimelineSta
       name: 'OTP granted',
       duration: fmt(otp),
       date: fmt(otp),
+      sortKey: iso(otp),
       description: 'The date the seller granted you the Option to Purchase.',
     },
     {
       name: 'Option period ends (exercise by)',
       duration: `${t.otpDays} days after OTP`,
       date: fmt(optionEnd),
+      sortKey: iso(optionEnd),
       description: 'Customary private resale option period — exercise by this date.',
     },
     {
       name: 'Completion (estimated)',
       duration: weeksRangeLabel(t.completionWeeks),
       date: dateRangeLabel(completionMin, completionMax),
+      sortKey: iso(completionMin),
       description: 'Final payment and handover of keys.',
     },
   ];

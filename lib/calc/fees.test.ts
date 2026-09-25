@@ -9,8 +9,8 @@ describe('computeBuyFees — golden case 1 upfront cash breakdown', () => {
     expect(result.optionMoneyExercise).toBe(4_000);
   });
 
-  it('conveyancing is $400', () => {
-    expect(result.conveyancing).toBe(400);
+  it('conveyancing is $2,400', () => {
+    expect(result.conveyancing).toBe(2_400);
   });
 
   it('valuation is $120', () => {
@@ -21,8 +21,8 @@ describe('computeBuyFees — golden case 1 upfront cash breakdown', () => {
     expect(result.commission).toBeCloseTo(6_540, 6);
   });
 
-  it('total upfront cash is $12,060', () => {
-    expect(result.totalUpfrontCash).toBeCloseTo(12_060, 6);
+  it('total upfront cash is $14,060', () => {
+    expect(result.totalUpfrontCash).toBeCloseTo(14_060, 6);
   });
 });
 

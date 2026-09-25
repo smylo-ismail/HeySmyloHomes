@@ -161,9 +161,19 @@ export const RATES = {
   },
 
   fees: {
+    // Since the Law Society's old 0.4%-of-price scale was abolished (2009), Singapore law
+    // firms mostly quote a flat all-in package for straightforward residential conveyancing
+    // rather than a price/loan-scaled fee — so these stay flat bands, just recalibrated to
+    // real 2025/2026 market quotes (corroborated across multiple conveyancing/mortgage guides,
+    // e.g. Cashew, HomeTruly, Circular Law) rather than the placeholder figures used before:
+    // HDB resale buyer with a bank loan (private firm, not HDB's own panel) ~$2,200-3,500
+    // all-in, cash purchase ~$1,800-2,500, seller with mortgage discharge ~$1,500-2,800 — one
+    // shared band covers both sides of an HDB resale reasonably. Private property conveyancing
+    // typically ~$2,000-5,000 all-in. Real quotes vary by firm/complexity — flag any far-off
+    // quote to smylo rather than trusting this default for an actual transaction.
     conveyancing: {
-      hdb: { min: 300, max: 600, default: 400 },
-      private: { min: 1_800, max: 3_000, default: 2_400 },
+      hdb: { min: 1_500, max: 3_500, default: 2_400 },
+      private: { min: 2_000, max: 5_000, default: 3_000 },
     },
     valuation: { default: 120 },
     commission: {

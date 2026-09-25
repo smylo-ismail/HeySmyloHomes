@@ -11,6 +11,7 @@ import {
   getResaleBuyTimelineFromOtp,
   getResaleSellTimeline,
   getResaleSellTimelineFromOtp,
+  mergeTimelines,
 } from './hdbTimelines';
 
 describe('getResaleBuyTimeline', () => {
@@ -166,6 +167,43 @@ describe('getPrivateResaleBuyTimelineFromOtp', () => {
   it('widens completion into a range rather than a false-precision single date', () => {
     const completion = stages.find((s) => s.name === 'Completion (estimated)');
     expect(completion?.date).toBe('12 Mar 2027 – 9 Apr 2027');
+  });
+});
+
+describe('mergeTimelines', () => {
+  it('interleaves two legs in true chronological order and tags each stage', () => {
+    const merged = mergeTimelines([
+      { tag: 'SELL', stages: getResaleSellTimelineFromOtp('2027-01-01') },
+      { tag: 'BUY', stages: getPrivateResaleBuyTimelineFromOtp('2027-01-15') },
+    ]);
+
+    // sell's OTP (Jan 1) comes before buy's OTP (Jan 15).
+    expect(merged[0].tag).toBe('SELL');
+    expect(merged[0].name).toBe('OTP granted to buyer');
+
+    const dated = merged.filter((s) => s.sortKey !== undefined);
+    for (let i = 1; i < dated.length; i++) {
+      expect(dated[i].sortKey! >= dated[i - 1].sortKey!).toBe(true);
+    }
+    expect(dated.length).toBe(merged.length); // every stage here has a date
+  });
+
+  it('pushes undated stages (e.g. BTO construction) after every dated stage, in original order', () => {
+    const merged = mergeTimelines([
+      { tag: 'SELL', stages: getResaleSellTimelineFromOtp('2027-01-01') },
+      { tag: 'BUY', stages: getBtoBuyTimelineFromApplication('2027-06-01') },
+    ]);
+
+    const undated = merged.filter((s) => s.sortKey === undefined);
+    const lastDatedIndex = merged.findLastIndex((s) => s.sortKey !== undefined);
+    const firstUndatedIndex = merged.findIndex((s) => s.sortKey === undefined);
+    expect(firstUndatedIndex).toBeGreaterThan(lastDatedIndex);
+    expect(undated.map((s) => s.name)).toEqual([
+      'Flat selection appointment',
+      'Agreement for Lease & option fee',
+      'Construction',
+      'Key collection',
+    ]);
   });
 });
 
