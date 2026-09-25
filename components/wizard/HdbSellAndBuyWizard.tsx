@@ -79,7 +79,18 @@ export function HdbSellAndBuyWizard() {
   const reviewParsed = hdbSellAndBuySchema.safeParse(withDefaults());
 
   if (submitted && reviewParsed.success) {
-    return <HdbSellAndBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
+    return (
+      <HdbSellAndBuyResults
+        input={reviewParsed.data}
+        onEdit={() => setSubmitted(false)}
+        // Both dates are required by the schema (unlike FIRST_TIMER_HDB_BUY's optional anchor
+        // date) — clearing one to blank would fail validation and unexpectedly bounce the user
+        // out of the results screen back into the step wizard. Ignore a clear; only accept a
+        // real replacement date.
+        onChangeSellOtpDate={(v) => v && patch({ sellOtpGrantedDate: v })}
+        onChangeBuyAnchorDate={(v) => v && patch({ buyAnchorDate: v })}
+      />
+    );
   }
 
   const next = () => {

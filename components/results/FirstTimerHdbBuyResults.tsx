@@ -9,6 +9,9 @@ import { MicroLabel } from '@/components/MicroLabel';
 import { WarningsPanel } from '@/components/WarningsPanel';
 import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
+import { FundingBreakdown } from '@/components/FundingBreakdown';
+import { FeeBreakdown } from '@/components/FeeBreakdown';
+import { DateField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline } from '@/lib/timeline/hdbTimelines';
@@ -16,9 +19,11 @@ import { getBuyTimeline } from '@/lib/timeline/hdbTimelines';
 export function FirstTimerHdbBuyResults({
   input,
   onEdit,
+  onChangeAnchorDate,
 }: {
   input: FirstTimerHdbBuyInput;
   onEdit: () => void;
+  onChangeAnchorDate: (date: string | undefined) => void;
 }) {
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
@@ -84,12 +89,29 @@ export function FirstTimerHdbBuyResults({
 
       <section>
         <MicroLabel>cash &amp; cpf required</MicroLabel>
-        <div className="mt-2">
+        <div className="mt-3">
+          <FundingBreakdown
+            price={input.price}
+            loanGranted={loan.loanGranted}
+            cpfNeeded={cpf.cpfNeeded}
+            cashTopUp={cpf.cashTopUp}
+          />
+        </div>
+        <div className="mt-4">
           <RuledRow label="downpayment" value={loan.downpayment} />
           <RuledRow label="min cash required" value={loan.minCashRequired} />
           <RuledRow label="cpf needed (down + duties)" value={cpf.cpfNeeded} />
           <RuledRow label="cash top-up" value={cpf.cashTopUp} />
           <RuledRow label="upfront fees (option, legal, valuation, commission)" value={fees.totalUpfrontCash} />
+          <FeeBreakdown
+            rows={[
+              { label: 'conveyancing', value: fees.conveyancing },
+              { label: 'valuation', value: fees.valuation },
+              { label: 'agent commission', value: fees.commission },
+              { label: 'option fee (initial)', value: fees.optionMoneyInitial },
+              { label: 'option fee (exercise)', value: fees.optionMoneyExercise },
+            ]}
+          />
         </div>
         <div className="mt-4">
           <Figure label="est. cash required" value={totalCashRequired} size="md" />
@@ -98,7 +120,14 @@ export function FirstTimerHdbBuyResults({
 
       <section>
         <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
-        <div className="mt-2">
+        <div className="mt-3 max-w-[12rem]">
+          <DateField
+            label={input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
+            value={input.timelineAnchorDate}
+            onChange={onChangeAnchorDate}
+          />
+        </div>
+        <div className="mt-4">
           <Timeline stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate)} />
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">

@@ -10,9 +10,29 @@ import { MicroLabel } from '@/components/MicroLabel';
 import { WarningsPanel } from '@/components/WarningsPanel';
 import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
+import { FundingBreakdown } from '@/components/FundingBreakdown';
+import { FeeBreakdown } from '@/components/FeeBreakdown';
+import { DateField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
+
+/** A group-level heading — one notch heavier than the MicroLabels used for subsections within
+ *  it, so "which numbers belong to selling vs. buying" reads as an unmissable visual grouping
+ *  rather than something you have to infer from context. */
+function GroupHeading({ children, divider = false }: { children: React.ReactNode; divider?: boolean }) {
+  return (
+    <h2
+      className={
+        divider
+          ? 'font-display text-xl border-t border-rule pt-8 dark:border-white/10'
+          : 'font-display text-xl'
+      }
+    >
+      {children}
+    </h2>
+  );
+}
 
 /** Two bars scaled to a shared date axis so "which finishes first, and by how much" reads in
  *  one glance, without parsing the detailed stage list below (which stays, for anyone who wants
@@ -84,9 +104,13 @@ function OverviewBars({
 export function HdbSellAndBuyResults({
   input,
   onEdit,
+  onChangeSellOtpDate,
+  onChangeBuyAnchorDate,
 }: {
   input: HdbSellAndBuyInput;
   onEdit: () => void;
+  onChangeSellOtpDate: (date: string | undefined) => void;
+  onChangeBuyAnchorDate: (date: string | undefined) => void;
 }) {
   // Which side (left/right) each leg renders on in the two-column layout at sm: and up — purely
   // a presentation choice for whoever's narrating this to a client, so it's local UI state, not
@@ -149,6 +173,8 @@ export function HdbSellAndBuyResults({
         </div>
       )}
 
+      <GroupHeading>selling your {input.sellFlatType}</GroupHeading>
+
       <section>
         <Figure label="net cash proceeds from sale" value={sell.netCashProceeds} />
         <div className="mt-4">
@@ -157,8 +183,16 @@ export function HdbSellAndBuyResults({
           <RuledRow label="CPF refund (principal + accrued interest)" value={sell.cpfRefund.totalRefund} />
           <RuledRow label="resale levy" value={sell.resaleLevy.levy} />
           <RuledRow label="selling fees (conveyancing + commission)" value={sell.sellFees.conveyancing + sell.sellFees.commission} />
+          <FeeBreakdown
+            rows={[
+              { label: 'conveyancing', value: sell.sellFees.conveyancing },
+              { label: 'agent commission', value: sell.sellFees.commission },
+            ]}
+          />
         </div>
       </section>
+
+      <GroupHeading divider>buying your {buyHeadingLabel}</GroupHeading>
 
       {input.flatDestination === 'HDB' && (
         <section>
@@ -193,11 +227,28 @@ export function HdbSellAndBuyResults({
 
       <section>
         <MicroLabel>cash &amp; cpf required</MicroLabel>
-        <div className="mt-2">
+        <div className="mt-3">
+          <FundingBreakdown
+            price={input.price}
+            loanGranted={loan.loanGranted}
+            cpfNeeded={cpf.cpfNeeded}
+            cashTopUp={cpf.cashTopUp}
+          />
+        </div>
+        <div className="mt-4">
           <RuledRow label="downpayment" value={loan.downpayment} />
           <RuledRow label="cpf needed (down + duties)" value={cpf.cpfNeeded} />
           <RuledRow label="cpf available (balance + refund + grants)" value={cpf.cpfAvailable} />
           <RuledRow label="upfront fees (option, legal, valuation, commission)" value={fees.totalUpfrontCash} />
+          <FeeBreakdown
+            rows={[
+              { label: 'conveyancing', value: fees.conveyancing },
+              { label: 'valuation', value: fees.valuation },
+              { label: 'agent commission', value: fees.commission },
+              { label: 'option fee (initial)', value: fees.optionMoneyInitial },
+              { label: 'option fee (exercise)', value: fees.optionMoneyExercise },
+            ]}
+          />
         </div>
         {cashflow.bridgingNeeded && (
           <p className="mt-2 text-sm text-accent">
@@ -229,6 +280,22 @@ export function HdbSellAndBuyResults({
           <span className="hidden sm:inline">
             {sidesReversed ? '○ selling · ● buying' : '● selling · ○ buying'}
           </span>
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-6">
+          <div className="w-36">
+            <DateField label="OTP granted to buyer" value={input.sellOtpGrantedDate} onChange={onChangeSellOtpDate} />
+          </div>
+          <div className="w-36">
+            <DateField
+              label={input.flatDestination === 'HDB' && input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
+              value={input.buyAnchorDate}
+              onChange={onChangeBuyAnchorDate}
+            />
+          </div>
+        </div>
+        <p className="mt-1 text-xs text-ink/50 dark:text-dark-ink/50">
+          adjust either date to re-estimate both timelines below.
         </p>
 
         <div className="mt-4">

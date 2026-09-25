@@ -97,7 +97,13 @@ export function FirstTimerHdbBuyWizard() {
   const reviewParsed = firstTimerHdbBuySchema.safeParse(withDefaults());
 
   if (submitted && reviewParsed.success) {
-    return <FirstTimerHdbBuyResults input={reviewParsed.data} onEdit={() => setSubmitted(false)} />;
+    return (
+      <FirstTimerHdbBuyResults
+        input={reviewParsed.data}
+        onEdit={() => setSubmitted(false)}
+        onChangeAnchorDate={(v) => patch({ timelineAnchorDate: v })}
+      />
+    );
   }
 
   const next = () => {
