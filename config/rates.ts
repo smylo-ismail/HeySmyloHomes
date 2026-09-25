@@ -210,7 +210,10 @@ export const RATES = {
     hdbResaleBuy: {
       hfeWeeks: 4,
       otpDays: 21, // legally fixed option period, calendar days incl. weekends/holidays
-      applicationWeeks: 1,
+      // Default only — the resale submission period is "as agreed on the OTP" between buyer
+      // and seller, not a fixed rule, so this is user-overridable per case (see
+      // ResaleTiming in hdbTimelines.ts) rather than a hard constant.
+      applicationDays: 7,
       acceptanceWeeks: 4,
       completionWeeksAfterAcceptance: 8,
       // Buyer-initiated, runs in parallel with the option period from the day OTP is granted —

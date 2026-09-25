@@ -46,6 +46,14 @@ export const hdbSellAndBuySchema = z.object({
   // works, permit processing, contractor availability). Left blank, the timeline stops at
   // completion/key collection as before. Buy leg only — you don't renovate a flat you're selling.
   expectedRenovationWeeks: z.number().int().positive().optional(),
+  // Optional resale-process timing overrides (buy leg, RESALE flatSource only) — each defaults
+  // to config/rates.ts's hdbResaleBuy figures when left blank. Buy leg only — see
+  // hdbTimelines.ts's getResaleSellTimeline, which shares these same defaults with the sell leg
+  // rather than a separate copy, so a dedicated sell-leg override isn't offered here.
+  optionPeriodDays: z.number().int().positive().optional(),
+  applicationDays: z.number().int().positive().optional(),
+  acceptanceWeeks: z.number().int().positive().optional(),
+  completionWeeksAfterAcceptance: z.number().int().positive().optional(),
 }).superRefine((data, ctx) => {
   if (data.flatDestination === 'HDB') {
     if (!data.flatSource) {

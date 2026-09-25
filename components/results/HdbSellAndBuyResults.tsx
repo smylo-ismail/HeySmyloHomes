@@ -12,10 +12,11 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { FundingBreakdown } from '@/components/FundingBreakdown';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
+import { PaymentMilestones } from '@/components/PaymentMilestones';
 import { DateField, NumberField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
+import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
 /** A group-level heading — one notch heavier than the MicroLabels used for subsections within
  *  it, so "which numbers belong to selling vs. buying" reads as an unmissable visual grouping
@@ -107,12 +108,20 @@ export function HdbSellAndBuyResults({
   onChangeSellOtpDate,
   onChangeBuyAnchorDate,
   onChangeRenovationWeeks,
+  onChangeOptionPeriodDays,
+  onChangeApplicationDays,
+  onChangeAcceptanceWeeks,
+  onChangeCompletionWeeksAfterAcceptance,
 }: {
   input: HdbSellAndBuyInput;
   onEdit: () => void;
   onChangeSellOtpDate: (date: string | undefined) => void;
   onChangeBuyAnchorDate: (date: string | undefined) => void;
   onChangeRenovationWeeks: (weeks: number | undefined) => void;
+  onChangeOptionPeriodDays: (days: number | undefined) => void;
+  onChangeApplicationDays: (days: number | undefined) => void;
+  onChangeAcceptanceWeeks: (weeks: number | undefined) => void;
+  onChangeCompletionWeeksAfterAcceptance: (weeks: number | undefined) => void;
 }) {
   // Which side (left/right) each leg renders on in the two-column layout at sm: and up — purely
   // a presentation choice for whoever's narrating this to a client, so it's local UI state, not
@@ -137,6 +146,13 @@ export function HdbSellAndBuyResults({
 
   const sellsFirst = estimatedSellCompletionDate <= estimatedBuyCompletionDate;
 
+  const buyTiming: ResaleTiming = {
+    otpDays: input.optionPeriodDays,
+    applicationDays: input.applicationDays,
+    acceptanceWeeks: input.acceptanceWeeks,
+    completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
+  };
+
   // A private buy has no flatSource/flatType (resale-only, see hdbTimelines.ts) — everything
   // display-facing that used to read those HDB-only fields branches on flatDestination first.
   const buyKindLabel =
@@ -157,7 +173,7 @@ export function HdbSellAndBuyResults({
     { tag: `selling your ${input.sellFlatType}`, stages: getResaleSellTimelineFromOtp(input.sellOtpGrantedDate) },
     {
       tag: `buying your ${buyKindLabel}`,
-      stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate, input.expectedRenovationWeeks),
+      stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate, input.expectedRenovationWeeks, buyTiming),
     },
   ]);
 
@@ -311,6 +327,28 @@ export function HdbSellAndBuyResults({
           adjust any of these to re-estimate the timeline below.
         </p>
 
+        {input.flatDestination === 'HDB' && input.flatSource === 'RESALE' && (
+          <details className="mt-3">
+            <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+              edit process timing (buy leg)
+            </summary>
+            <div className="mt-3 flex flex-wrap gap-6">
+              <div className="w-36">
+                <NumberField label="option period (days)" value={input.optionPeriodDays} onChange={onChangeOptionPeriodDays} placeholder="21" />
+              </div>
+              <div className="w-36">
+                <NumberField label="application (days after exercise)" value={input.applicationDays} onChange={onChangeApplicationDays} placeholder="7" />
+              </div>
+              <div className="w-36">
+                <NumberField label="acceptance (weeks after application)" value={input.acceptanceWeeks} onChange={onChangeAcceptanceWeeks} placeholder="4" />
+              </div>
+              <div className="w-36">
+                <NumberField label="completion (weeks after acceptance)" value={input.completionWeeksAfterAcceptance} onChange={onChangeCompletionWeeksAfterAcceptance} placeholder="8" />
+              </div>
+            </div>
+          </details>
+        )}
+
         <div className="mt-4">
           <OverviewBars
             sellLabel={`selling your ${input.sellFlatType}`}
@@ -326,6 +364,41 @@ export function HdbSellAndBuyResults({
           <Timeline stages={combinedStages} reversed={sidesReversed} />
         </div>
       </section>
+
+      {(input.flatDestination === 'PRIVATE' || input.flatSource === 'RESALE') && (
+        <section>
+          <MicroLabel>payment milestones — buying your {buyKindLabel}</MicroLabel>
+          <div className="mt-3">
+            <PaymentMilestones
+              groups={[
+                {
+                  heading: 'option & exercise fee',
+                  rows: [
+                    { label: 'paid to seller', cash: fees.optionMoneyInitial + fees.optionMoneyExercise, total: fees.optionMoneyInitial + fees.optionMoneyExercise },
+                  ],
+                },
+                {
+                  heading: 'upon completion',
+                  rows: [
+                    {
+                      label: 'costs & fees (conveyancing, valuation, commission)',
+                      cash: fees.conveyancing + fees.valuation + fees.commission,
+                      total: fees.conveyancing + fees.valuation + fees.commission,
+                    },
+                    {
+                      label: 'balance purchase price & stamp duty',
+                      cpf: Math.min(cpf.cpfNeeded, cpf.cpfAvailable),
+                      cash: cpf.cashTopUp,
+                      loan: loan.loanGranted,
+                      total: Math.min(cpf.cpfNeeded, cpf.cpfAvailable) + cpf.cashTopUp + loan.loanGranted,
+                    },
+                  ],
+                },
+              ]}
+            />
+          </div>
+        </section>
+      )}
 
       <WarningsPanel warnings={warnings} />
 

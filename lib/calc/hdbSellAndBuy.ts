@@ -7,7 +7,7 @@ import { computeLoan, type LoanResult } from './loan';
 import { computeCpfBuySide, type CpfBuySideResult } from './cpf';
 import { computeBuyFees, type BuyFeesResult } from './fees';
 import { computeCashflow, type CashflowEvent, type CashflowResult } from './cashflow';
-import { estimateBuyCompletionDate, estimateSellCompletionDate } from '@/lib/timeline/hdbTimelines';
+import { estimateBuyCompletionDate, estimateSellCompletionDate, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
 export interface HdbSellAndBuyResult {
   sell: SellFlatResult;
@@ -90,11 +90,20 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
   // concrete, plannable date each side actually has: when an OTP was/will be granted (or, for
   // a BTO purchase, the application date). See lib/timeline/hdbTimelines.ts for the same math
   // driving the process-timeline display.
+  // Buy-leg timing overrides only (see lib/schema/hdbSellAndBuy.ts) — the sell leg shares
+  // hdbResaleBuy's defaults rather than exposing its own separate override set.
+  const buyTiming: ResaleTiming = {
+    otpDays: input.optionPeriodDays,
+    applicationDays: input.applicationDays,
+    acceptanceWeeks: input.acceptanceWeeks,
+    completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
+  };
   const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate);
   const estimatedBuyCompletionDate = estimateBuyCompletionDate(
     input.flatDestination,
     input.flatSource,
-    input.buyAnchorDate
+    input.buyAnchorDate,
+    buyTiming
   );
 
   // If the sale hasn't completed by the time the purchase does, this household counts as

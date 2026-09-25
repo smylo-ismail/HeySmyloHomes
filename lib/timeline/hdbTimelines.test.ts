@@ -128,6 +128,27 @@ describe('getResaleBuyTimelineFromOtp', () => {
     expect(gordonAndAngie.find((s) => s.name === 'HDB notifies application acceptance')?.date).toBe('18 Nov 2026');
     expect(gordonAndAngie.find((s) => s.name === 'Resale completion (estimated)')?.date).toBe('13 Jan 2027');
   });
+
+  it('lets a known case override any of the default durations', () => {
+    const overridden = getResaleBuyTimelineFromOtp('2027-01-01', {
+      otpDays: 14,
+      applicationDays: 3,
+      acceptanceWeeks: 2,
+      completionWeeksAfterAcceptance: 6,
+    });
+    expect(overridden.find((s) => s.name.startsWith('Option period ends'))?.date).toBe('15 Jan 2027');
+    expect(overridden.find((s) => s.name === 'Resale application submitted')?.date).toBe('18 Jan 2027');
+    expect(overridden.find((s) => s.name === 'HDB notifies application acceptance')?.date).toBe('1 Feb 2027');
+    expect(overridden.find((s) => s.name === 'Resale completion (estimated)')?.date).toBe('15 Mar 2027');
+  });
+
+  it('a partial override only replaces the given fields, defaulting the rest', () => {
+    const overridden = getResaleBuyTimelineFromOtp('2027-01-01', { applicationDays: 14 });
+    // option period (21 days, default) unaffected
+    expect(overridden.find((s) => s.name.startsWith('Option period ends'))?.date).toBe('22 Jan 2027');
+    // application pushed out to 14 days after option end instead of the default 7
+    expect(overridden.find((s) => s.name === 'Resale application submitted')?.date).toBe('5 Feb 2027');
+  });
 });
 
 describe('getResaleSellTimelineFromOtp', () => {
@@ -236,6 +257,12 @@ describe('completion-date estimates (for cashflow sequencing, not display)', () 
 
   it('private resale: uses the latest (most conservative) end of the completion range', () => {
     expect(estimateBuyCompletionDate('PRIVATE', undefined, '2027-01-01')).toBe('2027-04-09');
+  });
+
+  it('resale: respects timing overrides for cashflow sequencing, not just display', () => {
+    const timing = { otpDays: 14, applicationDays: 3, acceptanceWeeks: 2, completionWeeksAfterAcceptance: 6 };
+    expect(estimateBuyCompletionDate('HDB', 'RESALE', '2027-01-01', timing)).toBe('2027-03-15');
+    expect(estimateSellCompletionDate('2027-01-01', timing)).toBe('2027-03-15');
   });
 });
 
