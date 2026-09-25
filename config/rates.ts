@@ -196,18 +196,31 @@ export const RATES = {
   // Sourced from HDB's official "Overview of Resale Flat Buying/Selling Process" and BTO
   // balloting process pages (hdb.gov.sg), corroborated against independent guides, Sep 2026.
   // Durations are HDB's own typical ranges, not fixed dates — surfaced as such in the UI.
+  //
+  // hdbResaleBuy's application/acceptance/completion figures were replaced Sep 2026 with
+  // smylo's own directly-observed case timeline (Gordon & Angie, OTP granted 23 Sep 2026):
+  // resale application submitted ~1 week after exercising the option, HDB notifies application
+  // acceptance ~4 weeks after submission, resale completion ~8 weeks after acceptance — three
+  // sequential single-figure gaps replacing the previous blended 'applicationAndValuationWeeks'
+  // + 'hdbApprovalWeeks' ranges, which understated the real total (up to 10 weeks max) against
+  // the ~13 weeks actually observed. Shared by both the buy and sell sides — see
+  // hdbTimelines.ts's getResaleSellTimeline, which reads these same fields rather than
+  // duplicating them (the old duplicate copy in hdbResaleSell below could drift out of sync).
   timeline: {
     hdbResaleBuy: {
       hfeWeeks: 4,
       otpDays: 21, // legally fixed option period, calendar days incl. weekends/holidays
-      applicationAndValuationWeeks: [1, 2],
-      hdbApprovalWeeks: [4, 8],
+      applicationWeeks: 1,
+      acceptanceWeeks: 4,
+      completionWeeksAfterAcceptance: 8,
+      // Buyer-initiated, runs in parallel with the option period from the day OTP is granted —
+      // not on the critical path, so it doesn't get its own dated stage (see fees.valuation.default
+      // for the $120 fee).
+      valuationWorkingDays: [7, 14],
     },
     hdbResaleSell: {
       intentToSellCoolingDays: 7,
       otpDays: 21,
-      applicationAndValuationWeeks: [1, 2],
-      hdbApprovalWeeks: [4, 8],
       temporaryExtensionOfStayMaxMonths: 3,
     },
     hdbBto: {

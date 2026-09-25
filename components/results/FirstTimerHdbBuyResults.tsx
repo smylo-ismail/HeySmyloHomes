@@ -11,7 +11,7 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { FundingBreakdown } from '@/components/FundingBreakdown';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
-import { DateField } from '@/components/wizard/fields';
+import { DateField, NumberField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline } from '@/lib/timeline/hdbTimelines';
@@ -20,10 +20,12 @@ export function FirstTimerHdbBuyResults({
   input,
   onEdit,
   onChangeAnchorDate,
+  onChangeRenovationWeeks,
 }: {
   input: FirstTimerHdbBuyInput;
   onEdit: () => void;
   onChangeAnchorDate: (date: string | undefined) => void;
+  onChangeRenovationWeeks: (weeks: number | undefined) => void;
 }) {
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
@@ -120,15 +122,27 @@ export function FirstTimerHdbBuyResults({
 
       <section>
         <MicroLabel>process timeline — {input.flatSource === 'BTO' ? 'bto' : 'resale'}</MicroLabel>
-        <div className="mt-3 max-w-[12rem]">
-          <DateField
-            label={input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
-            value={input.timelineAnchorDate}
-            onChange={onChangeAnchorDate}
-          />
+        <div className="mt-3 flex flex-wrap gap-6">
+          <div className="w-36">
+            <DateField
+              label={input.flatSource === 'BTO' ? 'application date' : 'OTP granted date'}
+              value={input.timelineAnchorDate}
+              onChange={onChangeAnchorDate}
+            />
+          </div>
+          <div className="w-36">
+            <NumberField
+              label="renovation (weeks) — optional"
+              value={input.expectedRenovationWeeks}
+              onChange={onChangeRenovationWeeks}
+              placeholder="not renovating? leave blank"
+            />
+          </div>
         </div>
         <div className="mt-4">
-          <Timeline stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate)} />
+          <Timeline
+            stages={getBuyTimeline('HDB', input.flatSource, input.timelineAnchorDate, input.expectedRenovationWeeks)}
+          />
         </div>
         <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
           {input.timelineAnchorDate

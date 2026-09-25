@@ -12,7 +12,7 @@ import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { FundingBreakdown } from '@/components/FundingBreakdown';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
-import { DateField } from '@/components/wizard/fields';
+import { DateField, NumberField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
@@ -106,11 +106,13 @@ export function HdbSellAndBuyResults({
   onEdit,
   onChangeSellOtpDate,
   onChangeBuyAnchorDate,
+  onChangeRenovationWeeks,
 }: {
   input: HdbSellAndBuyInput;
   onEdit: () => void;
   onChangeSellOtpDate: (date: string | undefined) => void;
   onChangeBuyAnchorDate: (date: string | undefined) => void;
+  onChangeRenovationWeeks: (weeks: number | undefined) => void;
 }) {
   // Which side (left/right) each leg renders on in the two-column layout at sm: and up — purely
   // a presentation choice for whoever's narrating this to a client, so it's local UI state, not
@@ -153,7 +155,10 @@ export function HdbSellAndBuyResults({
   // sell + buy scenario is seeing how the two processes actually overlap in calendar time.
   const combinedStages = mergeTimelines([
     { tag: `selling your ${input.sellFlatType}`, stages: getResaleSellTimelineFromOtp(input.sellOtpGrantedDate) },
-    { tag: `buying your ${buyKindLabel}`, stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate) },
+    {
+      tag: `buying your ${buyKindLabel}`,
+      stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate, input.expectedRenovationWeeks),
+    },
   ]);
 
   return (
@@ -293,9 +298,17 @@ export function HdbSellAndBuyResults({
               onChange={onChangeBuyAnchorDate}
             />
           </div>
+          <div className="w-36">
+            <NumberField
+              label="renovation (weeks)"
+              value={input.expectedRenovationWeeks}
+              onChange={onChangeRenovationWeeks}
+              placeholder="not renovating? leave blank"
+            />
+          </div>
         </div>
         <p className="mt-1 text-xs text-ink/50 dark:text-dark-ink/50">
-          adjust either date to re-estimate both timelines below.
+          adjust any of these to re-estimate the timeline below.
         </p>
 
         <div className="mt-4">

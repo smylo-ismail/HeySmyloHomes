@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  appendRenovation,
   estimateBuyCompletionDate,
   estimateSellCompletionDate,
   getBtoBuyTimeline,
@@ -25,6 +26,12 @@ describe('getResaleBuyTimeline', () => {
   it('states the OTP option period as a fixed 21 days, not a range', () => {
     const otpStage = stages.find((s) => s.name.includes('Option to Purchase'));
     expect(otpStage?.duration).toBe('21 days');
+  });
+
+  it('separates submission, HDB acceptance, and completion into three distinct stages', () => {
+    expect(stages.map((s) => s.name)).toEqual(
+      expect.arrayContaining(['Resale application submitted', 'HDB notifies application acceptance', 'Resale completion'])
+    );
   });
 
   it('every stage has a non-empty name, duration, and description', () => {
@@ -84,8 +91,10 @@ describe('getResaleSellTimeline', () => {
   });
 });
 
-// OTP granted 1 Jan 2027 -> option ends 22 Jan (21 days) -> application 29 Jan-5 Feb (1-2wks)
-// -> approval/completion 26 Feb-2 Apr (4-8wks further).
+// OTP granted 1 Jan 2027 -> option ends 22 Jan (21 days) -> application submitted 29 Jan (+1wk)
+// -> HDB accepts 26 Feb (+4wk) -> completion 23 Apr 2027 (+8wk). Matches smylo's Gordon & Angie
+// case (OTP 23 Sep 2026 -> exercise 14 Oct -> submission 21 Oct -> acceptance 18 Nov ->
+// completion 13 Jan 2027) — see config/rates.ts's hdbResaleBuy comment.
 describe('getResaleBuyTimelineFromOtp', () => {
   const stages = getResaleBuyTimelineFromOtp('2027-01-01');
 
@@ -94,11 +103,11 @@ describe('getResaleBuyTimelineFromOtp', () => {
     expect(optionStage?.date).toBe('22 Jan 2027');
   });
 
-  it('widens application and approval into ranges rather than false-precision single dates', () => {
-    const application = stages.find((s) => s.name === 'Resale application & valuation');
-    expect(application?.date).toBe('29 Jan 2027 – 5 Feb 2027');
-    const approval = stages.find((s) => s.name === 'HDB approval');
-    expect(approval?.date).toBe('26 Feb 2027 – 2 Apr 2027');
+  it('uses single-figure dates for submission and acceptance, not ranges', () => {
+    const application = stages.find((s) => s.name === 'Resale application submitted');
+    expect(application?.date).toBe('29 Jan 2027');
+    const acceptance = stages.find((s) => s.name === 'HDB notifies application acceptance');
+    expect(acceptance?.date).toBe('26 Feb 2027');
   });
 
   it('every stage carries a computed date when anchored', () => {
@@ -107,9 +116,17 @@ describe('getResaleBuyTimelineFromOtp', () => {
     }
   });
 
-  it('shows completion as a single date at the end of the approval window, not a duplicate of its range', () => {
+  it('computes completion 8 weeks after acceptance', () => {
     const completion = stages.find((s) => s.name === 'Resale completion (estimated)');
-    expect(completion?.date).toBe('2 Apr 2027');
+    expect(completion?.date).toBe('23 Apr 2027');
+  });
+
+  it('matches the real Gordon & Angie case timeline', () => {
+    const gordonAndAngie = getResaleBuyTimelineFromOtp('2026-09-23');
+    expect(gordonAndAngie.find((s) => s.name.startsWith('Option period ends'))?.date).toBe('14 Oct 2026');
+    expect(gordonAndAngie.find((s) => s.name === 'Resale application submitted')?.date).toBe('21 Oct 2026');
+    expect(gordonAndAngie.find((s) => s.name === 'HDB notifies application acceptance')?.date).toBe('18 Nov 2026');
+    expect(gordonAndAngie.find((s) => s.name === 'Resale completion (estimated)')?.date).toBe('13 Jan 2027');
   });
 });
 
@@ -208,9 +225,9 @@ describe('mergeTimelines', () => {
 });
 
 describe('completion-date estimates (for cashflow sequencing, not display)', () => {
-  it('resale: uses the latest (most conservative) end of the approval range', () => {
-    expect(estimateSellCompletionDate('2027-01-01')).toBe('2027-04-02');
-    expect(estimateBuyCompletionDate('HDB', 'RESALE', '2027-01-01')).toBe('2027-04-02');
+  it('resale: OTP + 21 days + 1 + 4 + 8 weeks', () => {
+    expect(estimateSellCompletionDate('2027-01-01')).toBe('2027-04-23');
+    expect(estimateBuyCompletionDate('HDB', 'RESALE', '2027-01-01')).toBe('2027-04-23');
   });
 
   it('BTO: uses the midpoint of the sourced 3-5 year construction range', () => {
@@ -219,5 +236,35 @@ describe('completion-date estimates (for cashflow sequencing, not display)', () 
 
   it('private resale: uses the latest (most conservative) end of the completion range', () => {
     expect(estimateBuyCompletionDate('PRIVATE', undefined, '2027-01-01')).toBe('2027-04-09');
+  });
+});
+
+describe('appendRenovation', () => {
+  it('schedules renovation from the day after a known completion date', () => {
+    const base = getResaleBuyTimelineFromOtp('2027-01-01');
+    const withReno = appendRenovation(base, '2027-04-23', 8);
+    expect(withReno.length).toBe(base.length + 2);
+    const start = withReno.find((s) => s.name === 'Renovation starts');
+    expect(start?.date).toBe('24 Apr 2027');
+    const complete = withReno.find((s) => s.name === 'Renovation complete — ready to move in');
+    expect(complete?.date).toBe('19 Jun 2027'); // 24 Apr + 8 weeks
+  });
+
+  it('falls back to a duration-only stage when there is no completion date to anchor from (e.g. BTO)', () => {
+    const base = getBtoBuyTimeline();
+    const withReno = appendRenovation(base, undefined, 8);
+    const reno = withReno.find((s) => s.name === 'Renovation');
+    expect(reno).toBeDefined();
+    expect(reno?.date).toBeUndefined();
+    expect(reno?.duration).toBe('8 weeks');
+  });
+});
+
+describe('getBuyTimeline with renovation', () => {
+  it('appends renovation stages when a duration is given, and omits them when not', () => {
+    const withoutReno = getBuyTimeline('HDB', 'RESALE', '2027-01-01');
+    const withReno = getBuyTimeline('HDB', 'RESALE', '2027-01-01', 8);
+    expect(withReno.length).toBe(withoutReno.length + 2);
+    expect(withReno.some((s) => s.name === 'Renovation starts')).toBe(true);
   });
 });

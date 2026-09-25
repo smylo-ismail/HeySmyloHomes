@@ -89,6 +89,7 @@ export function HdbSellAndBuyWizard() {
         // real replacement date.
         onChangeSellOtpDate={(v) => v && patch({ sellOtpGrantedDate: v })}
         onChangeBuyAnchorDate={(v) => v && patch({ buyAnchorDate: v })}
+        onChangeRenovationWeeks={(v) => patch({ expectedRenovationWeeks: v })}
       />
     );
   }
@@ -191,6 +192,11 @@ export function HdbSellAndBuyWizard() {
           fieldKey: 'buyAnchorDate',
           label: draft.flatDestination === 'HDB' && draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
           value: formatDateReadable(draft.buyAnchorDate),
+        },
+        {
+          fieldKey: 'expectedRenovationWeeks',
+          label: 'renovation',
+          value: draft.expectedRenovationWeeks !== undefined ? `${draft.expectedRenovationWeeks} weeks` : 'not planned',
         },
       ],
     },
@@ -393,6 +399,12 @@ export function HdbSellAndBuyWizard() {
               label={draft.flatDestination === 'HDB' && draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date (or expected)'}
               value={draft.buyAnchorDate}
               onChange={(v) => patch({ buyAnchorDate: v })}
+            />
+            <NumberField
+              label="expected renovation duration (weeks) — optional"
+              value={draft.expectedRenovationWeeks}
+              onChange={(v) => patch({ expectedRenovationWeeks: v })}
+              placeholder="not renovating? leave blank"
             />
           </>
         )}

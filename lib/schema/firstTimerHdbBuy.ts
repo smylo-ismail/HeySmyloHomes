@@ -26,6 +26,10 @@ export const firstTimerHdbBuySchema = z.object({
   // Optional — anchors the process timeline to real calendar dates instead of abstract
   // durations. RESALE: the date an OTP was/will be granted. BTO: the application date.
   timelineAnchorDate: z.string().optional(),
+  // Optional — not everyone renovates, and actual duration is entirely case-specific (scope of
+  // works, permit processing, contractor availability). Left blank, the timeline stops at
+  // completion/key collection as before.
+  expectedRenovationWeeks: z.number().int().positive().optional(),
 });
 
 export type FirstTimerHdbBuyInput = z.infer<typeof firstTimerHdbBuySchema>;

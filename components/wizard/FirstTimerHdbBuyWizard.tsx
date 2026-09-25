@@ -102,6 +102,7 @@ export function FirstTimerHdbBuyWizard() {
         input={reviewParsed.data}
         onEdit={() => setSubmitted(false)}
         onChangeAnchorDate={(v) => patch({ timelineAnchorDate: v })}
+        onChangeRenovationWeeks={(v) => patch({ expectedRenovationWeeks: v })}
       />
     );
   }
@@ -175,6 +176,11 @@ export function FirstTimerHdbBuyWizard() {
           fieldKey: 'timelineAnchorDate',
           label: draft.flatSource === 'BTO' ? 'application date' : 'OTP granted date',
           value: formatDateReadable(draft.timelineAnchorDate),
+        },
+        {
+          fieldKey: 'expectedRenovationWeeks',
+          label: 'renovation',
+          value: draft.expectedRenovationWeeks !== undefined ? `${draft.expectedRenovationWeeks} weeks` : 'not planned',
         },
       ],
     },
@@ -320,6 +326,12 @@ export function FirstTimerHdbBuyWizard() {
               label={draft.flatSource === 'BTO' ? 'application date — optional' : 'OTP granted date — optional'}
               value={draft.timelineAnchorDate}
               onChange={(v) => patch({ timelineAnchorDate: v })}
+            />
+            <NumberField
+              label="expected renovation duration (weeks) — optional"
+              value={draft.expectedRenovationWeeks}
+              onChange={(v) => patch({ expectedRenovationWeeks: v })}
+              placeholder="not renovating? leave blank"
             />
           </>
         )}
