@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { differenceInCalendarDays, format, parseISO } from 'date-fns';
 import type { HdbSellAndBuyInput } from '@/lib/schema/hdbSellAndBuy';
 import { runHdbSellAndBuy } from '@/lib/calc/hdbSellAndBuy';
 import { Figure } from '@/components/Figure';
@@ -12,6 +13,73 @@ import { Timeline } from '@/components/Timeline';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
+
+/** ROUGH DRAFT — not wired to replace anything, just for visual review. Two bars scaled to a
+ *  shared date axis so "which finishes first, and by how much" reads in one glance, without
+ *  parsing the detailed stage list below. */
+function OverviewBars({
+  sellLabel,
+  sellStart,
+  sellEnd,
+  buyLabel,
+  buyStart,
+  buyEnd,
+}: {
+  sellLabel: string;
+  sellStart: string;
+  sellEnd: string;
+  buyLabel: string;
+  buyStart: string;
+  buyEnd: string;
+}) {
+  const dates = [sellStart, sellEnd, buyStart, buyEnd].map((d) => parseISO(d));
+  const axisStart = new Date(Math.min(...dates.map((d) => d.getTime())));
+  const axisEnd = new Date(Math.max(...dates.map((d) => d.getTime())));
+  const totalDays = differenceInCalendarDays(axisEnd, axisStart) || 1;
+
+  const pct = (d: string) => (differenceInCalendarDays(parseISO(d), axisStart) / totalDays) * 100;
+  const fmtShort = (d: string) => format(parseISO(d), 'd MMM');
+
+  const rows = [
+    { label: sellLabel, start: sellStart, end: sellEnd, filled: true },
+    { label: buyLabel, start: buyStart, end: buyEnd, filled: false },
+  ];
+
+  return (
+    <div className="space-y-5 rounded border border-rule p-4 dark:border-white/10">
+      {rows.map((row) => {
+        const startPct = pct(row.start);
+        const endPct = pct(row.end);
+        return (
+          <div key={row.label}>
+            <div className="micro-label text-ink/50 dark:text-dark-ink/50">{row.label}</div>
+            <div className="relative mt-2 h-1.5 rounded-full bg-rule dark:bg-white/10">
+              <div
+                className={
+                  row.filled
+                    ? 'absolute inset-y-0 rounded-full bg-ink dark:bg-dark-ink'
+                    : 'absolute inset-y-0 rounded-full border border-ink bg-bg dark:border-dark-ink dark:bg-dark-bg'
+                }
+                style={{ left: `${startPct}%`, width: `${Math.max(endPct - startPct, 2)}%` }}
+              />
+            </div>
+            <div className="relative mt-1 h-4 text-[11px]">
+              <span className="figure absolute text-ink/50 dark:text-dark-ink/50" style={{ left: `${startPct}%` }}>
+                {fmtShort(row.start)}
+              </span>
+              <span
+                className="figure absolute -translate-x-full text-ink/50 dark:text-dark-ink/50"
+                style={{ left: `${endPct}%` }}
+              >
+                {fmtShort(row.end)}
+              </span>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function HdbSellAndBuyResults({
   input,
@@ -162,7 +230,19 @@ export function HdbSellAndBuyResults({
             {sidesReversed ? '○ selling · ● buying' : '● selling · ○ buying'}
           </span>
         </p>
-        <div className="mt-2">
+
+        <div className="mt-4">
+          <OverviewBars
+            sellLabel={`selling your ${input.sellFlatType}`}
+            sellStart={input.sellOtpGrantedDate}
+            sellEnd={estimatedSellCompletionDate}
+            buyLabel={`buying your ${buyKindLabel}`}
+            buyStart={input.buyAnchorDate}
+            buyEnd={estimatedBuyCompletionDate}
+          />
+        </div>
+
+        <div className="mt-6">
           <Timeline stages={combinedStages} reversed={sidesReversed} />
         </div>
       </section>
