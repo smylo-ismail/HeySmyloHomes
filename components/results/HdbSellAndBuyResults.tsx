@@ -14,9 +14,9 @@ import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline, getResaleSellTimelineFromOtp, mergeTimelines } from '@/lib/timeline/hdbTimelines';
 
-/** ROUGH DRAFT — not wired to replace anything, just for visual review. Two bars scaled to a
- *  shared date axis so "which finishes first, and by how much" reads in one glance, without
- *  parsing the detailed stage list below. */
+/** Two bars scaled to a shared date axis so "which finishes first, and by how much" reads in
+ *  one glance, without parsing the detailed stage list below (which stays, for anyone who wants
+ *  the stage-by-stage specifics). */
 function OverviewBars({
   sellLabel,
   sellStart,
