@@ -139,6 +139,8 @@ export function HdbSellAndBuyResults({
     fees,
     cashflow,
     totalCashRequired,
+    cashMandatorilyAppliedToLoan,
+    minCashSellerKeeps,
     estimatedSellCompletionDate,
     estimatedBuyCompletionDate,
     warnings,
@@ -207,7 +209,16 @@ export function HdbSellAndBuyResults({
           <RuledRow label="sale price" value={sell.salePrice} />
           <RuledRow label="outstanding loan redeemed" value={sell.outstandingLoanRedeemed} />
           <RuledRow label="CPF refund (principal + accrued interest)" value={sell.cpfRefund.totalRefund} />
+          {input.sellers.length > 1 && (
+            <FeeBreakdown
+              rows={sell.cpfRefundBySeller.map((r, i) => ({ label: `seller ${i + 1}`, value: r.totalRefund }))}
+            />
+          )}
           <RuledRow label="resale levy" value={sell.resaleLevy.levy} />
+          {sell.upgradingLevy > 0 && <RuledRow label="upgrading levy" value={sell.upgradingLevy} />}
+          {sell.outstandingUpgradingCost > 0 && (
+            <RuledRow label="outstanding upgrading costs" value={sell.outstandingUpgradingCost} />
+          )}
           <RuledRow label="selling fees (conveyancing + commission)" value={sell.sellFees.conveyancing + sell.sellFees.commission} />
           <FeeBreakdown
             rows={[
@@ -216,6 +227,23 @@ export function HdbSellAndBuyResults({
             ]}
           />
         </div>
+        {input.sellers.length > 1 && (
+          <div className="mt-4">
+            <MicroLabel>net proceeds by seller ({input.mannerOfHolding === 'TENANCY_IN_COMMON' ? 'tenancy-in-common' : 'joint tenancy — equal split'})</MicroLabel>
+            <div className="mt-2">
+              {sell.proceedsBySeller.map((p, i) => (
+                <RuledRow key={i} label={`seller ${i + 1} (${Math.round(p.share * 100)}%)`} value={p.amount} />
+              ))}
+            </div>
+          </div>
+        )}
+        {cashMandatorilyAppliedToLoan > 0 && (
+          <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
+            HDB requires applying part of these proceeds to your next loan (see below) — you can keep{' '}
+            {formatSgd(minCashSellerKeeps)}, the greater of $25,000 or 50% of cash proceeds; the remaining{' '}
+            {formatSgd(cashMandatorilyAppliedToLoan)} reduces the loan for your next purchase.
+          </p>
+        )}
       </section>
 
       <GroupHeading divider>buying your {buyHeadingLabel}</GroupHeading>
