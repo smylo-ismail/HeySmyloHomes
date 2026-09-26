@@ -253,9 +253,12 @@ export function HdbSellAndBuyResults({
         )}
         {cashMandatorilyAppliedToLoan > 0 && (
           <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
-            HDB requires applying part of these proceeds to your next loan (see below) — you can keep{' '}
+            HDB requires applying part of these proceeds to your next purchase (see below) — you can keep{' '}
             {formatSgd(minCashSellerKeeps)}, the greater of $25,000 or 50% of cash proceeds; the remaining{' '}
-            {formatSgd(cashMandatorilyAppliedToLoan)} reduces the loan for your next purchase.
+            {formatSgd(cashMandatorilyAppliedToLoan)}{' '}
+            {loan.bindingConstraint === 'FUNDS'
+              ? 'reduces the loan for your next purchase.'
+              : "goes toward funding it — your loan is already capped by eligibility (not by funds available), so this cash covers the rest of what's needed instead of shrinking the loan further."}
           </p>
         )}
       </section>

@@ -159,6 +159,38 @@ describe('runHdbSellAndBuy — combined cashflow', () => {
   });
 });
 
+describe('runHdbSellAndBuy — mandatory cash-to-loan rule interacts correctly with loan sizing', () => {
+  it('proceeds don’t cover the loan redemption at all: no mandatory cash, floor stays $25,000', () => {
+    const result = runHdbSellAndBuy({
+      ...baseInput,
+      sellPrice: 500_000,
+      outstandingLoanBalance: 480_000, // heavily underwater
+    });
+    expect(result.sell.netCashProceeds).toBeLessThan(0);
+    expect(result.cashMandatorilyAppliedToLoan).toBe(0);
+    expect(result.minCashSellerKeeps).toBe(25_000);
+  });
+
+  it('when the loan is eligibility-capped (not funds-sized), the mandatory cash still funds the purchase — it just doesn’t shrink the loan further, and the final cash-required figure stays accurate rather than double-counting it', () => {
+    // Very low income forces an MSR ceiling far below what would otherwise be borrowed, so the
+    // loan is eligibility-bound even though there's ample mandatory cash from the sale.
+    const result = runHdbSellAndBuy({
+      ...baseInput,
+      sellPrice: 900_000,
+      sellers: [{ cpfPrincipalUsed: 0, cpfUsageYears: 0 }],
+      avgMonthlyHouseholdIncome: 2_000,
+      additionalCpfOaBalance: 0,
+      proximity: 'NONE',
+    });
+    expect(result.loan.bindingConstraint).toBe('MSR');
+    expect(result.loan.loanGranted).toBeCloseTo(result.loan.maxLoanMsr!);
+    expect(result.cashMandatorilyAppliedToLoan).toBeGreaterThan(0);
+    // The sale's full net proceeds (not just the "must-apply" slice) still cover the purchase
+    // ahead of time, so nothing extra is required overall.
+    expect(result.totalCashRequired).toBe(0);
+  });
+});
+
 describe('runHdbSellAndBuy — sell-leg timing overrides', () => {
   it('an earlier-than-default option period pulls the sell completion date forward', () => {
     const withDefaults = runHdbSellAndBuy(baseInput);
