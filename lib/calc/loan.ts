@@ -1,7 +1,7 @@
 import { RATES } from '@/config/rates';
 
 export type LoanType = 'HDB' | 'BANK';
-export type BindingConstraint = 'LTV' | 'MSR' | 'TDSR';
+export type BindingConstraint = 'LTV' | 'MSR' | 'TDSR' | 'FUNDS';
 
 export interface LoanInput {
   loanType: LoanType;
@@ -17,6 +17,21 @@ export interface LoanInput {
    *  bank rate is specified anywhere in the spec (only the 4% MAS stress rate is), so this
    *  is left as an optional user input rather than a guessed constant. */
   bankActualRate?: number;
+  /** CPF OA balance + housing grants — verified directly against HDB's own resale payment-plan
+   *  calculator (screenshots, Sep 2026): the loan actually disbursed is the residual after
+   *  applying these funds, not automatically the max eligible amount. Confirmed for both HDB and
+   *  bank loans (nothing HDB-specific about the mechanic — a bank buyer with ample CPF simply
+   *  doesn't need to borrow as much either). Defaults to 0, which reduces to the old
+   *  always-take-the-max-eligible-loan behavior for callers that don't have this figure (e.g.
+   *  existing unit tests probing the eligibility ceilings in isolation). */
+  cpfAndGrantsAvailable?: number;
+  /** Price-related costs beyond the price itself that are also CPF-payable and therefore also
+   *  reduce how much you need to borrow — stamp duties (BSD+ABSD) and the conveyancing fee.
+   *  Confirmed CPF-eligible per the same HDB calculator screenshots (valuation and agent
+   *  commission are NOT included there — HDB's own "costs & fees" breakdown never itemizes
+   *  them, implying they're paid outside the CPF/loan pipeline, so they stay cash-only and are
+   *  not part of this figure). Defaults to 0. */
+  cpfEligibleUpfrontCosts?: number;
 }
 
 export interface LoanResult {
@@ -48,7 +63,13 @@ function monthlyPaymentForLoan(loanAmount: number, annualRate: number, tenureYea
 
 export function computeLoan(input: LoanInput): LoanResult {
   const warnings: string[] = [];
-  const dutiable = Math.max(input.price, input.valuation);
+  // The lower of price/valuation — confirmed against HDB's own resale payment-plan calculator
+  // (screenshots, Sep 2026): "Initial Payment... based on the lower of resale price or value of
+  // the flat", so the loan (and thus the initial-payment/downpayment split) is sized off the
+  // lower figure too. Any price-over-valuation gap (cash-over-valuation, COV) must be topped up
+  // in cash separately — see grants.ts/absd.ts, which correctly use the HIGHER of the two for
+  // stamp duty purposes (a different, unrelated basis) via their own `dutiable` constants.
+  const ltvBasis = Math.min(input.price, input.valuation);
 
   const ltvPct =
     input.loanType === 'HDB'
@@ -56,7 +77,7 @@ export function computeLoan(input: LoanInput): LoanResult {
       : input.outstandingHousingLoans && input.outstandingHousingLoans >= 1
         ? RATES.loan.bank.ltvPctWithOneOutstandingLoan
         : RATES.loan.bank.ltvPctFirstLoan;
-  const maxLoanLtv = dutiable * ltvPct;
+  const maxLoanLtv = ltvBasis * ltvPct;
 
   const stressRate =
     input.loanType === 'HDB' ? RATES.loan.hdb.stressTestRate : RATES.loan.bank.stressTestRate;
@@ -82,7 +103,21 @@ export function computeLoan(input: LoanInput): LoanResult {
   const candidates: { amount: number; label: BindingConstraint }[] = [{ amount: maxLoanLtv, label: 'LTV' }];
   if (maxLoanMsr !== undefined) candidates.push({ amount: maxLoanMsr, label: 'MSR' });
   if (maxLoanTdsr !== undefined) candidates.push({ amount: maxLoanTdsr, label: 'TDSR' });
-  const binding = candidates.reduce((min, c) => (c.amount < min.amount ? c : min));
+  const eligible = candidates.reduce((min, c) => (c.amount < min.amount ? c : min));
+
+  const minCashPct = input.loanType === 'HDB' ? RATES.loan.hdb.minCashPct : RATES.loan.bank.minCashPct;
+  const minCashRequired = input.price * minCashPct;
+
+  // Needs-based sizing: the loan is however much is left after price + CPF-eligible costs are
+  // funded by CPF/grants and the mandatory minimum cash — not automatically the max eligible
+  // amount. See LoanInput's cpfAndGrantsAvailable comment for the source. `binding` reflects
+  // which constraint actually determined the granted amount: an eligibility ceiling (LTV/MSR/
+  // TDSR) only when funds alone would have needed to borrow more than that ceiling allows;
+  // otherwise 'FUNDS' — the buyer simply doesn't need to borrow up to their eligible max.
+  const fundingNeed = input.price + (input.cpfEligibleUpfrontCosts ?? 0);
+  const loanNeeded = Math.max(fundingNeed - minCashRequired - (input.cpfAndGrantsAvailable ?? 0), 0);
+  const binding: { amount: number; label: BindingConstraint } =
+    loanNeeded >= eligible.amount ? eligible : { amount: loanNeeded, label: 'FUNDS' };
   const loanGranted = binding.amount;
 
   const actualMonthlyPayment =
@@ -91,9 +126,6 @@ export function computeLoan(input: LoanInput): LoanResult {
       : input.bankActualRate !== undefined
         ? monthlyPaymentForLoan(loanGranted, input.bankActualRate, input.tenureYears)
         : undefined;
-
-  const minCashPct = input.loanType === 'HDB' ? RATES.loan.hdb.minCashPct : RATES.loan.bank.minCashPct;
-  const minCashRequired = input.price * minCashPct;
 
   const maxTenure =
     input.loanType === 'HDB'

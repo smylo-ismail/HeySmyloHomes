@@ -13,7 +13,7 @@ import { FundingBreakdown } from '@/components/FundingBreakdown';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
 import { PaymentMilestones } from '@/components/PaymentMilestones';
 import { DateField, NumberField } from '@/components/wizard/fields';
-import { formatSgd } from '@/lib/format';
+import { formatSgd, formatBindingConstraint } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
 import { getBuyTimeline, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
@@ -38,6 +38,11 @@ export function FirstTimerHdbBuyResults({
 }) {
   const result = useMemo(() => runFirstTimerHdbBuy(input), [input]);
   const { grants, bsd, absd, loan, cpf, fees, totalCashRequired } = result;
+
+  // A mandatory minimum-cash floor (bank loans only, 0 for HDB) still applies even when CPF
+  // fully covers the rest — see loan.ts's cpfEligibleUpfrontCosts comment for why this can't
+  // just be cpf.cashTopUp on its own.
+  const effectiveCashTopUp = Math.max(cpf.cashTopUp, loan.minCashRequired);
 
   const timing: ResaleTiming = {
     otpDays: input.optionPeriodDays,
@@ -94,7 +99,7 @@ export function FirstTimerHdbBuyResults({
       </section>
 
       <section>
-        <Figure label={`loan granted — ${loan.bindingConstraint}-bound`} value={loan.loanGranted} />
+        <Figure label={`loan granted — ${formatBindingConstraint(loan.bindingConstraint)}`} value={loan.loanGranted} />
         <div className="mt-4">
           <RuledRow label="max loan — LTV" value={loan.maxLoanLtv} />
           {loan.maxLoanMsr !== undefined && <RuledRow label="max loan — MSR" value={loan.maxLoanMsr} />}
@@ -112,14 +117,14 @@ export function FirstTimerHdbBuyResults({
             price={input.price}
             loanGranted={loan.loanGranted}
             cpfNeeded={cpf.cpfNeeded}
-            cashTopUp={cpf.cashTopUp}
+            cashTopUp={effectiveCashTopUp}
           />
         </div>
         <div className="mt-4">
           <RuledRow label="downpayment" value={loan.downpayment} />
           <RuledRow label="min cash required" value={loan.minCashRequired} />
-          <RuledRow label="cpf needed (down + duties)" value={cpf.cpfNeeded} />
-          <RuledRow label="cash top-up" value={cpf.cashTopUp} />
+          <RuledRow label="cpf needed (down + duties + conveyancing)" value={cpf.cpfNeeded} />
+          <RuledRow label="cash top-up" value={effectiveCashTopUp} />
           <RuledRow label="upfront fees (option, legal, valuation, commission)" value={fees.totalUpfrontCash} />
           <FeeBreakdown
             rows={[
@@ -204,16 +209,16 @@ export function FirstTimerHdbBuyResults({
                   heading: 'upon completion',
                   rows: [
                     {
-                      label: 'costs & fees (conveyancing, valuation, commission)',
-                      cash: fees.conveyancing + fees.valuation + fees.commission,
-                      total: fees.conveyancing + fees.valuation + fees.commission,
+                      label: 'valuation & agent commission (cash only)',
+                      cash: fees.valuation + fees.commission,
+                      total: fees.valuation + fees.commission,
                     },
                     {
-                      label: 'balance purchase price & stamp duty',
-                      cpf: Math.min(cpf.cpfNeeded, cpf.cpfAvailable),
-                      cash: cpf.cashTopUp,
+                      label: 'balance purchase price, stamp duty & conveyancing',
+                      cpf: input.price + bsd + absd.absd + fees.conveyancing - loan.loanGranted - effectiveCashTopUp,
+                      cash: effectiveCashTopUp,
                       loan: loan.loanGranted,
-                      total: Math.min(cpf.cpfNeeded, cpf.cpfAvailable) + cpf.cashTopUp + loan.loanGranted,
+                      total: input.price + bsd + absd.absd + fees.conveyancing,
                     },
                   ],
                 },

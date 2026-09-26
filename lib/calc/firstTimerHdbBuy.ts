@@ -60,6 +60,8 @@ export function runFirstTimerHdbBuy(input: FirstTimerHdbBuyInput): FirstTimerHdb
     isFirstJointProperty: isMarriedCouple,
   });
 
+  const fees = computeBuyFees({ kind: 'HDB', path: input.flatSource, price: input.price });
+
   const loan = computeLoan({
     loanType: input.loanType,
     price: input.price,
@@ -70,6 +72,8 @@ export function runFirstTimerHdbBuy(input: FirstTimerHdbBuyInput): FirstTimerHdb
     isHdbOrEcPurchase: true,
     bankActualRate: input.bankActualRate,
     buyerAges: input.buyerAges,
+    cpfAndGrantsAvailable: input.cpfOaBalance + grants.total,
+    cpfEligibleUpfrontCosts: bsd + absd.absd + fees.conveyancing,
   });
 
   const cpf = computeCpfBuySide({
@@ -77,11 +81,14 @@ export function runFirstTimerHdbBuy(input: FirstTimerHdbBuyInput): FirstTimerHdb
     grantsTotal: grants.total,
     downpayment: loan.downpayment,
     stampDuty: bsd + absd.absd,
+    otherCpfEligibleCosts: fees.conveyancing,
   });
 
-  const fees = computeBuyFees({ kind: 'HDB', path: input.flatSource, price: input.price });
-
-  const totalCashRequired = cpf.cashTopUp + fees.totalUpfrontCash;
+  // Valuation and agent commission stay cash-only (not part of HDB's CPF-eligible cost pool —
+  // see loan.ts's cpfEligibleUpfrontCosts comment); minCashRequired is a floor even when CPF
+  // fully covers the rest (bank loans only — 0 for an HDB loan).
+  const totalCashRequired =
+    Math.max(cpf.cashTopUp, loan.minCashRequired) + fees.valuation + fees.commission + fees.optionMoneyInitial + fees.optionMoneyExercise;
 
   return { grants, bsd, absd, loan, cpf, fees, totalCashRequired };
 }

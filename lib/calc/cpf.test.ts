@@ -27,6 +27,30 @@ describe('computeCpfBuySide — cash top-up when CPF is insufficient', () => {
   });
 });
 
+describe('computeCpfBuySide — otherCpfEligibleCosts (conveyancing)', () => {
+  it('folds into cpfNeeded alongside stamp duty', () => {
+    const result = computeCpfBuySide({
+      oaBalance: 190_000,
+      grantsTotal: 0,
+      downpayment: 175_000,
+      stampDuty: 12_600,
+      otherCpfEligibleCosts: 2_400,
+    });
+    expect(result.cpfNeeded).toBe(190_000);
+    expect(result.cashTopUp).toBe(0);
+  });
+
+  it('defaults to 0 when omitted', () => {
+    const result = computeCpfBuySide({
+      oaBalance: 60_000,
+      grantsTotal: 130_000,
+      downpayment: 157_159,
+      stampDuty: 12_600,
+    });
+    expect(result.cpfNeeded).toBe(169_759);
+  });
+});
+
 describe('computeCpfRefund', () => {
   it('uses a direct accrued-interest override when provided', () => {
     const result = computeCpfRefund({ principal: 100_000, accruedInterestOverride: 12_345 });

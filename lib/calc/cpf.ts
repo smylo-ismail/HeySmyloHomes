@@ -35,6 +35,11 @@ export interface CpfBuySideInput {
   grantsTotal: number;
   downpayment: number;
   stampDuty: number;
+  /** Other CPF-eligible upfront costs beyond stamp duty — currently just the conveyancing fee.
+   *  Confirmed CPF-payable against HDB's own resale payment-plan calculator (see loan.ts's
+   *  cpfEligibleUpfrontCosts comment for the source); valuation and agent commission are NOT
+   *  included here since HDB's own breakdown never itemizes them as CPF-eligible. Defaults to 0. */
+  otherCpfEligibleCosts?: number;
 }
 
 export interface CpfBuySideResult {
@@ -43,12 +48,15 @@ export interface CpfBuySideResult {
   cashTopUp: number;
 }
 
-/** Buy-side CPF usage: OA (own balance + grants) applied to downpayment + stamp duties.
- *  The lease-to-95 pro-ration risk is grants.ts's single authoritative warning — not
- *  duplicated here, since both engines are always composed together by the same caller. */
+/** Buy-side CPF usage: OA (own balance + grants) applied to downpayment + stamp duties + other
+ *  CPF-eligible costs. The lease-to-95 pro-ration risk is grants.ts's single authoritative
+ *  warning — not duplicated here, since both engines are always composed together by the same
+ *  caller. `downpayment` should already be needs-based (see loan.ts) — when it is, cashTopUp
+ *  naturally resolves to 0 except for the mandatory minimum-cash floor, which the caller is
+ *  responsible for combining in via `Math.max(cashTopUp, loan.minCashRequired)`. */
 export function computeCpfBuySide(input: CpfBuySideInput): CpfBuySideResult {
   const cpfAvailable = input.oaBalance + input.grantsTotal;
-  const cpfNeeded = input.downpayment + input.stampDuty;
+  const cpfNeeded = input.downpayment + input.stampDuty + (input.otherCpfEligibleCosts ?? 0);
   const cashTopUp = Math.max(cpfNeeded - cpfAvailable, 0);
 
   return { cpfAvailable, cpfNeeded, cashTopUp };

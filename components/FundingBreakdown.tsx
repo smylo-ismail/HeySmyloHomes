@@ -15,7 +15,7 @@ export function FundingBreakdown({
 }) {
   const loanPct = price > 0 ? (loanGranted / price) * 100 : 0;
   const downpaymentPct = 100 - loanPct;
-  const cashPct = cpfNeeded > 0 ? (cashTopUp / cpfNeeded) * 100 : 0;
+  const cashPct = cpfNeeded > 0 ? Math.min((cashTopUp / cpfNeeded) * 100, 100) : 0;
   const cpfPct = cpfNeeded > 0 ? 100 - cashPct : 0;
 
   return (

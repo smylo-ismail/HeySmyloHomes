@@ -133,6 +133,15 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     isFirstJointProperty: false,
   });
 
+  // The sale's CPF refund lands back in CPF OA before it can fund the new purchase.
+  const cpfOaBalance = input.additionalCpfOaBalance + sell.cpfRefund.totalRefund;
+
+  const fees = computeBuyFees({
+    kind: input.flatDestination === 'HDB' ? 'HDB' : 'PRIVATE',
+    path: input.flatDestination === 'HDB' ? input.flatSource! : 'RESALE', // private buy is resale-only for now
+    price: input.price,
+  });
+
   const loan = computeLoan({
     loanType: input.loanType,
     price: input.price,
@@ -148,23 +157,22 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     // that hasn't happened yet by the time this loan is taken out, it's still outstanding and
     // drops the bank LTV tier from 75% to 45%.
     outstandingHousingLoans: sellsBeforeOrOnBuy ? 0 : 1,
+    cpfAndGrantsAvailable: cpfOaBalance + grants.total,
+    cpfEligibleUpfrontCosts: bsd + absd.absd + fees.conveyancing,
   });
-
-  // The sale's CPF refund lands back in CPF OA before it can fund the new purchase.
-  const cpfOaBalance = input.additionalCpfOaBalance + sell.cpfRefund.totalRefund;
 
   const cpf = computeCpfBuySide({
     oaBalance: cpfOaBalance,
     grantsTotal: grants.total,
     downpayment: loan.downpayment,
     stampDuty: bsd + absd.absd,
+    otherCpfEligibleCosts: fees.conveyancing,
   });
 
-  const fees = computeBuyFees({
-    kind: input.flatDestination === 'HDB' ? 'HDB' : 'PRIVATE',
-    path: input.flatDestination === 'HDB' ? input.flatSource! : 'RESALE', // private buy is resale-only for now
-    price: input.price,
-  });
+  // Valuation and agent commission stay cash-only (see loan.ts's cpfEligibleUpfrontCosts
+  // comment); minCashRequired is a floor even when CPF fully covers the rest (bank loans only).
+  const cashRequiredForPurchase =
+    Math.max(cpf.cashTopUp, loan.minCashRequired) + fees.valuation + fees.commission + fees.optionMoneyInitial + fees.optionMoneyExercise;
 
   const events: CashflowEvent[] = [
     {
@@ -177,7 +185,7 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     {
       date: estimatedBuyCompletionDate,
       label: 'Purchase completion — downpayment, duties & fees',
-      cash: -(cpf.cashTopUp + fees.totalUpfrontCash),
+      cash: -cashRequiredForPurchase,
       cpf: -cpf.cpfNeeded,
       direction: 'OUT',
     },
