@@ -20,6 +20,15 @@ export const hdbSellOnlySchema = z
     mannerOfHolding: z.enum(['JOINT_TENANCY', 'TENANCY_IN_COMMON']).optional(),
     ownershipShares: z.array(z.number().min(0).max(1)).optional(),
     sellOtpGrantedDate: z.string(), // ISO date
+    // Optional resale-process timing overrides — each defaults to config/rates.ts's
+    // hdbResaleBuy figures when left blank. In reality a buyer may exercise well before the
+    // full 21-day option period runs out, or the resale application may go in earlier/later
+    // than the typical week after exercise — these let the timeline reflect what actually
+    // happened (or is expected) rather than always assuming the textbook durations.
+    optionPeriodDays: z.number().int().positive().optional(),
+    applicationDays: z.number().int().positive().optional(),
+    acceptanceWeeks: z.number().int().positive().optional(),
+    completionWeeksAfterAcceptance: z.number().int().positive().optional(),
 
     // "Next housing plans" — optional and informational only, matching HDB's own tool: there's
     // no buy leg here to actually size a loan against, so these only drive two display-only

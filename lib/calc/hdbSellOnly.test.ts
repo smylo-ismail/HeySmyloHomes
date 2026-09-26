@@ -83,6 +83,20 @@ describe('runHdbSellOnly — mandatory cash-to-loan preview', () => {
   });
 });
 
+describe('runHdbSellOnly — process timing overrides', () => {
+  it('an earlier-than-default option period pulls the completion date forward', () => {
+    const withDefaults = runHdbSellOnly(baseInput);
+    const earlyExercise = runHdbSellOnly({ ...baseInput, optionPeriodDays: 10 });
+    expect(earlyExercise.estimatedSellCompletionDate < withDefaults.estimatedSellCompletionDate).toBe(true);
+  });
+
+  it('a later-than-default application submission pushes the completion date back', () => {
+    const withDefaults = runHdbSellOnly(baseInput);
+    const lateSubmission = runHdbSellOnly({ ...baseInput, applicationDays: 21 });
+    expect(lateSubmission.estimatedSellCompletionDate > withDefaults.estimatedSellCompletionDate).toBe(true);
+  });
+});
+
 describe('runHdbSellOnly — multi-seller and manner of holding pass straight through to sellFlat', () => {
   it('splits proceeds per seller under tenancy-in-common', () => {
     const result = runHdbSellOnly({

@@ -112,6 +112,10 @@ export function HdbSellAndBuyResults({
   onChangeApplicationDays,
   onChangeAcceptanceWeeks,
   onChangeCompletionWeeksAfterAcceptance,
+  onChangeSellOptionPeriodDays,
+  onChangeSellApplicationDays,
+  onChangeSellAcceptanceWeeks,
+  onChangeSellCompletionWeeksAfterAcceptance,
 }: {
   input: HdbSellAndBuyInput;
   onEdit: () => void;
@@ -122,6 +126,10 @@ export function HdbSellAndBuyResults({
   onChangeApplicationDays: (days: number | undefined) => void;
   onChangeAcceptanceWeeks: (weeks: number | undefined) => void;
   onChangeCompletionWeeksAfterAcceptance: (weeks: number | undefined) => void;
+  onChangeSellOptionPeriodDays: (days: number | undefined) => void;
+  onChangeSellApplicationDays: (days: number | undefined) => void;
+  onChangeSellAcceptanceWeeks: (weeks: number | undefined) => void;
+  onChangeSellCompletionWeeksAfterAcceptance: (weeks: number | undefined) => void;
 }) {
   // Which side (left/right) each leg renders on in the two-column layout at sm: and up — purely
   // a presentation choice for whoever's narrating this to a client, so it's local UI state, not
@@ -159,6 +167,12 @@ export function HdbSellAndBuyResults({
     acceptanceWeeks: input.acceptanceWeeks,
     completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
   };
+  const sellTiming: ResaleTiming = {
+    otpDays: input.sellOptionPeriodDays,
+    applicationDays: input.sellApplicationDays,
+    acceptanceWeeks: input.sellAcceptanceWeeks,
+    completionWeeksAfterAcceptance: input.sellCompletionWeeksAfterAcceptance,
+  };
 
   // A private buy has no flatSource/flatType (resale-only, see hdbTimelines.ts) — everything
   // display-facing that used to read those HDB-only fields branches on flatDestination first.
@@ -177,7 +191,7 @@ export function HdbSellAndBuyResults({
   // One chronologically-interleaved timeline rather than two separate lists — the point of a
   // sell + buy scenario is seeing how the two processes actually overlap in calendar time.
   const combinedStages = mergeTimelines([
-    { tag: `selling your ${input.sellFlatType}`, stages: getResaleSellTimelineFromOtp(input.sellOtpGrantedDate) },
+    { tag: `selling your ${input.sellFlatType}`, stages: getResaleSellTimelineFromOtp(input.sellOtpGrantedDate, sellTiming) },
     {
       tag: `buying your ${buyKindLabel}`,
       stages: getBuyTimeline(input.flatDestination, input.flatSource, input.buyAnchorDate, input.expectedRenovationWeeks, buyTiming),
@@ -383,6 +397,26 @@ export function HdbSellAndBuyResults({
             </div>
           </details>
         )}
+
+        <details className="mt-3">
+          <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+            edit process timing (sell leg)
+          </summary>
+          <div className="mt-3 flex flex-wrap gap-6">
+            <div className="w-36">
+              <NumberField label="option period (days)" value={input.sellOptionPeriodDays} onChange={onChangeSellOptionPeriodDays} placeholder="21" />
+            </div>
+            <div className="w-36">
+              <NumberField label="application (days after exercise)" value={input.sellApplicationDays} onChange={onChangeSellApplicationDays} placeholder="7" />
+            </div>
+            <div className="w-36">
+              <NumberField label="acceptance (weeks after application)" value={input.sellAcceptanceWeeks} onChange={onChangeSellAcceptanceWeeks} placeholder="4" />
+            </div>
+            <div className="w-36">
+              <NumberField label="completion (weeks after acceptance)" value={input.sellCompletionWeeksAfterAcceptance} onChange={onChangeSellCompletionWeeksAfterAcceptance} placeholder="8" />
+            </div>
+          </div>
+        </details>
 
         <div className="mt-4">
           <OverviewBars

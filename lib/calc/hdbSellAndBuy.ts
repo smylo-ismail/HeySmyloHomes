@@ -103,15 +103,23 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
   // concrete, plannable date each side actually has: when an OTP was/will be granted (or, for
   // a BTO purchase, the application date). See lib/timeline/hdbTimelines.ts for the same math
   // driving the process-timeline display.
-  // Buy-leg timing overrides only (see lib/schema/hdbSellAndBuy.ts) — the sell leg shares
-  // hdbResaleBuy's defaults rather than exposing its own separate override set.
+  // Each leg gets its own independently-adjustable timing overrides (see
+  // lib/schema/hdbSellAndBuy.ts) — a buyer may exercise well before the full option period runs
+  // out, or the resale application may go in earlier/later than the typical week after exercise,
+  // and that can happen on either leg independently.
   const buyTiming: ResaleTiming = {
     otpDays: input.optionPeriodDays,
     applicationDays: input.applicationDays,
     acceptanceWeeks: input.acceptanceWeeks,
     completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
   };
-  const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate);
+  const sellTiming: ResaleTiming = {
+    otpDays: input.sellOptionPeriodDays,
+    applicationDays: input.sellApplicationDays,
+    acceptanceWeeks: input.sellAcceptanceWeeks,
+    completionWeeksAfterAcceptance: input.sellCompletionWeeksAfterAcceptance,
+  };
+  const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate, sellTiming);
   const estimatedBuyCompletionDate = estimateBuyCompletionDate(
     input.flatDestination,
     input.flatSource,

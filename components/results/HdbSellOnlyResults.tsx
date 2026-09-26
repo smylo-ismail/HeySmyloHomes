@@ -10,24 +10,38 @@ import { WarningsPanel } from '@/components/WarningsPanel';
 import { InkButton } from '@/components/InkButton';
 import { Timeline } from '@/components/Timeline';
 import { FeeBreakdown } from '@/components/FeeBreakdown';
-import { DateField } from '@/components/wizard/fields';
+import { DateField, NumberField } from '@/components/wizard/fields';
 import { formatSgd } from '@/lib/format';
 import { buildAnonymousDiscussUrl } from '@/lib/whatsapp';
-import { getResaleSellTimelineFromOtp } from '@/lib/timeline/hdbTimelines';
+import { getResaleSellTimelineFromOtp, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
 export function HdbSellOnlyResults({
   input,
   onEdit,
   onChangeSellOtpDate,
+  onChangeOptionPeriodDays,
+  onChangeApplicationDays,
+  onChangeAcceptanceWeeks,
+  onChangeCompletionWeeksAfterAcceptance,
 }: {
   input: HdbSellOnlyInput;
   onEdit: () => void;
   onChangeSellOtpDate: (date: string | undefined) => void;
+  onChangeOptionPeriodDays: (days: number | undefined) => void;
+  onChangeApplicationDays: (days: number | undefined) => void;
+  onChangeAcceptanceWeeks: (weeks: number | undefined) => void;
+  onChangeCompletionWeeksAfterAcceptance: (weeks: number | undefined) => void;
 }) {
   const result = useMemo(() => runHdbSellOnly(input), [input]);
   const { sell, cashMandatorilyAppliedToLoan, minCashSellerKeeps, warnings } = result;
 
-  const stages = getResaleSellTimelineFromOtp(input.sellOtpGrantedDate);
+  const timing: ResaleTiming = {
+    otpDays: input.optionPeriodDays,
+    applicationDays: input.applicationDays,
+    acceptanceWeeks: input.acceptanceWeeks,
+    completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
+  };
+  const stages = getResaleSellTimelineFromOtp(input.sellOtpGrantedDate, timing);
 
   const summary = [
     `sell ${input.sellFlatType} at ${formatSgd(input.sellPrice)}`,
@@ -105,6 +119,31 @@ export function HdbSellOnlyResults({
         <p className="mt-1 text-xs text-ink/50 dark:text-dark-ink/50">
           adjust this to re-estimate the timeline below.
         </p>
+
+        <details className="mt-3">
+          <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+            edit process timing
+          </summary>
+          <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
+            In reality a buyer may exercise well before the full option period runs out, or
+            submit earlier/later than the typical week after exercise — override any of these to
+            match what&apos;s actually happening (or expected) instead of the textbook durations.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-6">
+            <div className="w-36">
+              <NumberField label="option period (days)" value={input.optionPeriodDays} onChange={onChangeOptionPeriodDays} placeholder="21" />
+            </div>
+            <div className="w-36">
+              <NumberField label="application (days after exercise)" value={input.applicationDays} onChange={onChangeApplicationDays} placeholder="7" />
+            </div>
+            <div className="w-36">
+              <NumberField label="acceptance (weeks after application)" value={input.acceptanceWeeks} onChange={onChangeAcceptanceWeeks} placeholder="4" />
+            </div>
+            <div className="w-36">
+              <NumberField label="completion (weeks after acceptance)" value={input.completionWeeksAfterAcceptance} onChange={onChangeCompletionWeeksAfterAcceptance} placeholder="8" />
+            </div>
+          </div>
+        </details>
 
         <div className="mt-6">
           <Timeline stages={stages} />

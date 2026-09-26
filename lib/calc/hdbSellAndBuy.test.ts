@@ -158,3 +158,23 @@ describe('runHdbSellAndBuy — combined cashflow', () => {
     expect(result.totalCashRequired).toBeGreaterThan(0);
   });
 });
+
+describe('runHdbSellAndBuy — sell-leg timing overrides', () => {
+  it('an earlier-than-default option period pulls the sell completion date forward', () => {
+    const withDefaults = runHdbSellAndBuy(baseInput);
+    const earlyExercise = runHdbSellAndBuy({ ...baseInput, sellOptionPeriodDays: 10 });
+    expect(earlyExercise.estimatedSellCompletionDate < withDefaults.estimatedSellCompletionDate).toBe(true);
+  });
+
+  it('a later-than-default application submission pushes the sell completion date back', () => {
+    const withDefaults = runHdbSellAndBuy(baseInput);
+    const lateSubmission = runHdbSellAndBuy({ ...baseInput, sellApplicationDays: 21 });
+    expect(lateSubmission.estimatedSellCompletionDate > withDefaults.estimatedSellCompletionDate).toBe(true);
+  });
+
+  it('sell-leg overrides never affect the buy leg’s completion date', () => {
+    const withDefaults = runHdbSellAndBuy(baseInput);
+    const overridden = runHdbSellAndBuy({ ...baseInput, sellOptionPeriodDays: 5, sellApplicationDays: 30 });
+    expect(overridden.estimatedBuyCompletionDate).toBe(withDefaults.estimatedBuyCompletionDate);
+  });
+});
