@@ -9,8 +9,7 @@ const baseInput: HdbSellAndBuyInput = {
   sellFlatType: '3R', // deliberately different from flatType (bought) below
   sellPrice: 550_000,
   outstandingLoanBalance: 100_000,
-  cpfPrincipalUsed: 150_000,
-  cpfUsageYears: 5,
+  sellers: [{ cpfPrincipalUsed: 150_000, cpfUsageYears: 5 }],
   sellOtpGrantedDate: '2026-10-01',
 
   applicationType: 'FAMILY',
@@ -134,7 +133,7 @@ describe('runHdbSellAndBuy — buying private property', () => {
 describe('runHdbSellAndBuy — CPF refund feeds the buy leg', () => {
   it('sale CPF refund reduces (or eliminates) the buy leg’s cash top-up', () => {
     const withRefund = runHdbSellAndBuy(baseInput);
-    const withoutRefund = runHdbSellAndBuy({ ...baseInput, cpfPrincipalUsed: 0, cpfUsageYears: 0 });
+    const withoutRefund = runHdbSellAndBuy({ ...baseInput, sellers: [{ cpfPrincipalUsed: 0, cpfUsageYears: 0 }] });
     expect(withRefund.cpf.cashTopUp).toBeLessThanOrEqual(withoutRefund.cpf.cashTopUp);
   });
 });

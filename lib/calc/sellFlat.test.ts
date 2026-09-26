@@ -4,7 +4,7 @@ import { computeSellFlat } from './sellFlat';
 const baseInput = {
   salePrice: 500_000,
   outstandingLoanBalance: 100_000,
-  cpfRefund: { principal: 150_000, accruedInterestOverride: 20_000 },
+  sellers: [{ principal: 150_000, accruedInterestOverride: 20_000 }],
   resaleLevy: { isSecondSubsidisedFlat: false, flatTypeSold: '4R' as const },
 };
 
@@ -32,7 +32,7 @@ describe('computeSellFlat', () => {
   it('CPF accrued interest compounds via years when no override is given', () => {
     const result = computeSellFlat({
       ...baseInput,
-      cpfRefund: { principal: 150_000, years: 5 },
+      sellers: [{ principal: 150_000, years: 5 }],
     });
     const expectedInterest = 150_000 * (Math.pow(1.025, 5) - 1);
     expect(result.cpfRefund.accruedInterest).toBeCloseTo(expectedInterest);
@@ -53,5 +53,67 @@ describe('computeSellFlat', () => {
     const result = computeSellFlat(baseInput);
     expect(result.netCashProceeds).toBeGreaterThan(0);
     expect(result.warnings.some((w) => /need cash to complete the sale/i.test(w))).toBe(false);
+  });
+
+  describe('multi-seller CPF', () => {
+    it('sums per-seller refunds computed with their own years', () => {
+      const result = computeSellFlat({
+        ...baseInput,
+        sellers: [
+          { principal: 255_278, accruedInterestOverride: 0 },
+          { principal: 142_679, accruedInterestOverride: 0 },
+        ],
+      });
+      expect(result.cpfRefundBySeller.length).toBe(2);
+      expect(result.cpfRefund.principal).toBe(397_957);
+      expect(result.cpfRefund.totalRefund).toBe(397_957);
+    });
+  });
+
+  describe('upgrading levy and outstanding upgrading costs', () => {
+    it('deduct from net cash proceeds like the resale levy', () => {
+      const result = computeSellFlat({
+        ...baseInput,
+        upgradingLevy: 5_000,
+        outstandingUpgradingCost: 2_000,
+      });
+      expect(result.netCashProceeds).toBeCloseTo(216_700 - 5_000 - 2_000);
+    });
+
+    it('default to 0 when omitted', () => {
+      const result = computeSellFlat(baseInput);
+      expect(result.upgradingLevy).toBe(0);
+      expect(result.outstandingUpgradingCost).toBe(0);
+    });
+  });
+
+  describe('proceedsBySeller (manner of holding)', () => {
+    it('splits equally for Joint Tenancy regardless of shares passed', () => {
+      const result = computeSellFlat({
+        ...baseInput,
+        sellers: [{ principal: 100_000 }, { principal: 50_000 }],
+        shareOfProceeds: { manner: 'JOINT_TENANCY' },
+      });
+      expect(result.proceedsBySeller.length).toBe(2);
+      expect(result.proceedsBySeller[0].share).toBeCloseTo(0.5);
+      expect(result.proceedsBySeller[0].amount).toBeCloseTo(result.netCashProceeds / 2);
+      expect(result.proceedsBySeller[1].amount).toBeCloseTo(result.netCashProceeds / 2);
+    });
+
+    it('splits by the given shares for Tenancy-in-Common', () => {
+      const result = computeSellFlat({
+        ...baseInput,
+        sellers: [{ principal: 100_000 }, { principal: 50_000 }],
+        shareOfProceeds: { manner: 'TENANCY_IN_COMMON', shares: [0.7, 0.3] },
+      });
+      expect(result.proceedsBySeller[0].amount).toBeCloseTo(result.netCashProceeds * 0.7);
+      expect(result.proceedsBySeller[1].amount).toBeCloseTo(result.netCashProceeds * 0.3);
+    });
+
+    it('defaults to an equal split when no shareOfProceeds is given', () => {
+      const result = computeSellFlat(baseInput);
+      expect(result.proceedsBySeller.length).toBe(1);
+      expect(result.proceedsBySeller[0].amount).toBeCloseTo(result.netCashProceeds);
+    });
   });
 });

@@ -51,6 +51,10 @@ const LOAN_TYPE_OPTIONS = [
   { value: 'HDB' as const, label: 'HDB loan' },
   { value: 'BANK' as const, label: 'bank loan' },
 ];
+const MANNER_OF_HOLDING_OPTIONS = [
+  { value: 'JOINT_TENANCY' as const, label: 'joint tenancy' },
+  { value: 'TENANCY_IN_COMMON' as const, label: 'tenancy-in-common' },
+];
 // An HDB loan can only ever fund an HDB flat — once buying private is picked, don't offer it.
 const BANK_ONLY_LOAN_TYPE_OPTIONS = LOAN_TYPE_OPTIONS.filter((o) => o.value === 'BANK');
 
@@ -68,6 +72,22 @@ export function HdbSellAndBuyWizard() {
   const [returningToReview, setReturningToReview] = useState(false);
 
   const patch = (fields: HdbSellAndBuyDraft) => setDraft({ ...draft, ...fields });
+
+  const sellers = draft.sellers ?? [{ cpfPrincipalUsed: 0 }];
+  const patchSeller = (index: number, fields: Partial<{ cpfPrincipalUsed: number; cpfUsageYears: number | undefined }>) => {
+    const next = sellers.map((s, i) => (i === index ? { ...s, ...fields } : s));
+    patch({ sellers: next });
+  };
+  const addSeller = () => patch({ sellers: [...sellers, { cpfPrincipalUsed: 0 }] });
+  const removeSeller = (index: number) => {
+    const next = sellers.filter((_, i) => i !== index);
+    patch({ sellers: next, ownershipShares: undefined });
+  };
+  const patchSharePct = (index: number, pct: number | undefined) => {
+    const current = draft.ownershipShares ?? sellers.map(() => 1 / sellers.length);
+    const next = current.map((s, i) => (i === index ? (pct ?? 0) / 100 : s));
+    patch({ ownershipShares: next });
+  };
 
   // "valuation" defaults to price when left blank — the field's own placeholder promises
   // this ("same as price if unsure"), so honor it here rather than failing validation.
@@ -135,12 +155,20 @@ export function HdbSellAndBuyWizard() {
           label: 'outstanding loan balance',
           value: draft.outstandingLoanBalance !== undefined ? formatSgd(draft.outstandingLoanBalance) : '—',
         },
-        {
-          fieldKey: 'cpfPrincipalUsed',
-          label: 'CPF principal used',
-          value: draft.cpfPrincipalUsed !== undefined ? formatSgd(draft.cpfPrincipalUsed) : '—',
-        },
-        { fieldKey: 'cpfUsageYears', label: 'years since CPF used', value: draft.cpfUsageYears !== undefined ? `${draft.cpfUsageYears}` : '0' },
+        ...sellers.map((seller, i) => ({
+          fieldKey: `sellers.${i}.cpfPrincipalUsed`,
+          label: sellers.length > 1 ? `seller ${i + 1} CPF used` : 'CPF principal used',
+          value: seller.cpfPrincipalUsed !== undefined ? formatSgd(seller.cpfPrincipalUsed) : '—',
+        })),
+        ...(draft.upgradingLevy !== undefined
+          ? [{ fieldKey: 'upgradingLevy', label: 'upgrading levy', value: formatSgd(draft.upgradingLevy) }]
+          : []),
+        ...(draft.outstandingUpgradingCost !== undefined
+          ? [{ fieldKey: 'outstandingUpgradingCost', label: 'outstanding upgrading costs', value: formatSgd(draft.outstandingUpgradingCost) }]
+          : []),
+        ...(sellers.length > 1
+          ? [{ fieldKey: 'mannerOfHolding', label: 'manner of holding', value: optionLabel(MANNER_OF_HOLDING_OPTIONS, draft.mannerOfHolding) }]
+          : []),
         {
           fieldKey: 'sellOtpGrantedDate',
           label: 'OTP granted to buyer',
@@ -293,18 +321,95 @@ export function HdbSellAndBuyWizard() {
               onChange={(v) => patch({ outstandingLoanBalance: v })}
               placeholder="100000"
             />
-            <NumberField
-              label="CPF principal used on this flat"
-              value={draft.cpfPrincipalUsed}
-              onChange={(v) => patch({ cpfPrincipalUsed: v })}
-              placeholder="150000"
-            />
-            <NumberField
-              label="years since that CPF was used"
-              value={draft.cpfUsageYears}
-              onChange={(v) => patch({ cpfUsageYears: v })}
-              placeholder="5"
-            />
+
+            <div className="space-y-4">
+              <MicroLabel>CPF monies utilised (per seller)</MicroLabel>
+              {sellers.map((seller, i) => (
+                <div key={i} className="space-y-3 border-l-2 border-rule pl-4 dark:border-white/10">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">seller {i + 1}</span>
+                    {sellers.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeSeller(i)}
+                        className="text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink"
+                      >
+                        remove
+                      </button>
+                    )}
+                  </div>
+                  <NumberField
+                    label="CPF principal used"
+                    value={seller.cpfPrincipalUsed}
+                    onChange={(v) => patchSeller(i, { cpfPrincipalUsed: v ?? 0 })}
+                    placeholder="150000"
+                  />
+                  <NumberField
+                    label="years since that CPF was used"
+                    value={seller.cpfUsageYears}
+                    onChange={(v) => patchSeller(i, { cpfUsageYears: v })}
+                    placeholder="5"
+                  />
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addSeller}
+                className="text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink"
+              >
+                + add seller
+              </button>
+            </div>
+
+            {sellers.length > 1 && (
+              <>
+                <ChoiceField
+                  label="manner of holding"
+                  value={draft.mannerOfHolding}
+                  onChange={(v) => patch({ mannerOfHolding: v })}
+                  options={MANNER_OF_HOLDING_OPTIONS}
+                />
+                {draft.mannerOfHolding === 'TENANCY_IN_COMMON' && (
+                  <div className="space-y-3">
+                    <MicroLabel>ownership share per seller (%)</MicroLabel>
+                    {sellers.map((_, i) => (
+                      <NumberField
+                        key={i}
+                        label={`seller ${i + 1} share (%)`}
+                        value={
+                          draft.ownershipShares?.[i] !== undefined
+                            ? Math.round(draft.ownershipShares[i] * 100)
+                            : undefined
+                        }
+                        onChange={(v) => patchSharePct(i, v)}
+                        placeholder={`${Math.round(100 / sellers.length)}`}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            <details className="mt-2">
+              <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+                advanced: outstanding upgrading levy / costs
+              </summary>
+              <div className="mt-3 space-y-4">
+                <NumberField
+                  label="upgrading levy — optional"
+                  value={draft.upgradingLevy}
+                  onChange={(v) => patch({ upgradingLevy: v })}
+                  placeholder="not applicable? leave blank"
+                />
+                <NumberField
+                  label="outstanding upgrading costs — optional"
+                  value={draft.outstandingUpgradingCost}
+                  onChange={(v) => patch({ outstandingUpgradingCost: v })}
+                  placeholder="not applicable? leave blank"
+                />
+              </div>
+            </details>
+
             <DateField
               label="OTP granted to buyer (or expected)"
               value={draft.sellOtpGrantedDate}
