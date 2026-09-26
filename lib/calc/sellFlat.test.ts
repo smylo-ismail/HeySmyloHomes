@@ -115,5 +115,18 @@ describe('computeSellFlat', () => {
       expect(result.proceedsBySeller.length).toBe(1);
       expect(result.proceedsBySeller[0].amount).toBeCloseTo(result.netCashProceeds);
     });
+
+    it('splits three ways with uneven shares, summing back to the total exactly', () => {
+      const result = computeSellFlat({
+        ...baseInput,
+        sellers: [{ principal: 100_000 }, { principal: 50_000 }, { principal: 20_000 }],
+        shareOfProceeds: { manner: 'TENANCY_IN_COMMON', shares: [0.5, 0.3, 0.2] },
+      });
+      expect(result.proceedsBySeller[0].amount).toBeCloseTo(result.netCashProceeds * 0.5);
+      expect(result.proceedsBySeller[1].amount).toBeCloseTo(result.netCashProceeds * 0.3);
+      expect(result.proceedsBySeller[2].amount).toBeCloseTo(result.netCashProceeds * 0.2);
+      const summed = result.proceedsBySeller.reduce((sum, p) => sum + p.amount, 0);
+      expect(summed).toBeCloseTo(result.netCashProceeds);
+    });
   });
 });
