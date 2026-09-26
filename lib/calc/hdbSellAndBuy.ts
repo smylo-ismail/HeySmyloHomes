@@ -20,6 +20,14 @@ export interface HdbSellAndBuyResult {
   cashflow: CashflowResult;
   /** Cash needed beyond what sale proceeds + CPF already cover — 0 if proceeds fully fund it. */
   totalCashRequired: number;
+  /** Mandatory minimum cash-proceeds-to-loan rule (HDB's own resale calculator, confirmed via
+   *  screenshots, Sep 2026): buying another HDB flat with a second HDB loan requires applying
+   *  part of your cash sale proceeds to reduce the new loan — you can keep only the greater of
+   *  $25,000 or 50% of cash proceeds. 0 when the rule doesn't apply (bank loan or private buy). */
+  cashMandatorilyAppliedToLoan: number;
+  /** The minimum you're allowed to keep as cash under the same rule — same value as
+   *  cashProceedsBasis - cashMandatorilyAppliedToLoan when the rule applies. */
+  minCashSellerKeeps: number;
   /** ISO dates estimated from each leg's OTP/application anchor — see hdbTimelines.ts. */
   estimatedSellCompletionDate: string;
   estimatedBuyCompletionDate: string;
@@ -77,11 +85,16 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
   const sell = computeSellFlat({
     salePrice: input.sellPrice,
     outstandingLoanBalance: input.outstandingLoanBalance,
-    cpfRefund: { principal: input.cpfPrincipalUsed, years: input.cpfUsageYears },
+    sellers: input.sellers.map((s) => ({ principal: s.cpfPrincipalUsed, years: s.cpfUsageYears })),
     resaleLevy: {
       isSecondSubsidisedFlat,
       flatTypeSold: input.sellFlatType,
     },
+    upgradingLevy: input.upgradingLevy,
+    outstandingUpgradingCost: input.outstandingUpgradingCost,
+    shareOfProceeds: input.mannerOfHolding
+      ? { manner: input.mannerOfHolding, shares: input.ownershipShares }
+      : undefined,
   });
 
   const bsd = computeBsd(input.price, input.valuation);
@@ -133,6 +146,26 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     isFirstJointProperty: false,
   });
 
+  // The sale's CPF refund lands back in CPF OA before it can fund the new purchase.
+  const cpfOaBalance = input.additionalCpfOaBalance + sell.cpfRefund.totalRefund;
+
+  // Mandatory minimum cash-proceeds-to-loan rule — scoped to HDB-loan + HDB-destination only,
+  // matching HDB's own conditioning (its calculator ties this to "a second HDB housing loan").
+  // Approximates HDB's own "cash proceeds including the cash deposit received" basis with our
+  // own already-computed netCashProceeds total, rather than separately modeling deposit timing.
+  const appliesMandatoryCashToLoanRule = input.flatDestination === 'HDB' && input.loanType === 'HDB';
+  const cashProceedsBasis = Math.max(sell.netCashProceeds, 0);
+  const minCashSellerKeeps = Math.max(25_000, 0.5 * cashProceedsBasis);
+  const cashMandatorilyAppliedToLoan = appliesMandatoryCashToLoanRule
+    ? Math.max(cashProceedsBasis - minCashSellerKeeps, 0)
+    : 0;
+
+  const fees = computeBuyFees({
+    kind: input.flatDestination === 'HDB' ? 'HDB' : 'PRIVATE',
+    path: input.flatDestination === 'HDB' ? input.flatSource! : 'RESALE', // private buy is resale-only for now
+    price: input.price,
+  });
+
   const loan = computeLoan({
     loanType: input.loanType,
     price: input.price,
@@ -148,23 +181,22 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     // that hasn't happened yet by the time this loan is taken out, it's still outstanding and
     // drops the bank LTV tier from 75% to 45%.
     outstandingHousingLoans: sellsBeforeOrOnBuy ? 0 : 1,
+    cpfAndGrantsAvailable: cpfOaBalance + grants.total + cashMandatorilyAppliedToLoan,
+    cpfEligibleUpfrontCosts: bsd + absd.absd + fees.conveyancing,
   });
-
-  // The sale's CPF refund lands back in CPF OA before it can fund the new purchase.
-  const cpfOaBalance = input.additionalCpfOaBalance + sell.cpfRefund.totalRefund;
 
   const cpf = computeCpfBuySide({
     oaBalance: cpfOaBalance,
     grantsTotal: grants.total,
     downpayment: loan.downpayment,
     stampDuty: bsd + absd.absd,
+    otherCpfEligibleCosts: fees.conveyancing,
   });
 
-  const fees = computeBuyFees({
-    kind: input.flatDestination === 'HDB' ? 'HDB' : 'PRIVATE',
-    path: input.flatDestination === 'HDB' ? input.flatSource! : 'RESALE', // private buy is resale-only for now
-    price: input.price,
-  });
+  // Valuation and agent commission stay cash-only (see loan.ts's cpfEligibleUpfrontCosts
+  // comment); minCashRequired is a floor even when CPF fully covers the rest (bank loans only).
+  const cashRequiredForPurchase =
+    Math.max(cpf.cashTopUp, loan.minCashRequired) + fees.valuation + fees.commission + fees.optionMoneyInitial + fees.optionMoneyExercise;
 
   const events: CashflowEvent[] = [
     {
@@ -177,7 +209,7 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     {
       date: estimatedBuyCompletionDate,
       label: 'Purchase completion — downpayment, duties & fees',
-      cash: -(cpf.cashTopUp + fees.totalUpfrontCash),
+      cash: -cashRequiredForPurchase,
       cpf: -cpf.cpfNeeded,
       direction: 'OUT',
     },
@@ -199,6 +231,8 @@ export function runHdbSellAndBuy(input: HdbSellAndBuyInput): HdbSellAndBuyResult
     fees,
     cashflow,
     totalCashRequired,
+    cashMandatorilyAppliedToLoan,
+    minCashSellerKeeps: appliesMandatoryCashToLoanRule ? minCashSellerKeeps : cashProceedsBasis,
     estimatedSellCompletionDate,
     estimatedBuyCompletionDate,
     warnings,

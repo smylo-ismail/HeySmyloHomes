@@ -19,6 +19,11 @@ const SCENARIO_GROUPS = [
         label: 'HDB sell & buy',
         description: 'sell your home, buy your next one',
       },
+      {
+        href: '/simulate/hdb-sell-only',
+        label: 'HDB sell only',
+        description: 'just working out your sale proceeds',
+      },
     ],
   },
 ];

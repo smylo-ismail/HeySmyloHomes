@@ -4,7 +4,7 @@ import type { HdbSellAndBuyInput } from './hdbSellAndBuy';
 export type HdbSellAndBuyDraft = Partial<HdbSellAndBuyInput>;
 
 export const EMPTY_SELL_AND_BUY_DRAFT: HdbSellAndBuyDraft = {
-  cpfUsageYears: 0,
+  sellers: [{ cpfPrincipalUsed: 0, cpfUsageYears: 0 }],
   employedContinuously12Months: true,
   ownsOrDisposedPrivateWithin30Months: false,
   proximity: 'NONE',

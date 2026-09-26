@@ -1,4 +1,5 @@
 import { format, parseISO } from 'date-fns';
+import type { BindingConstraint } from '@/lib/calc/loan';
 
 const currencyFormatter = new Intl.NumberFormat('en-SG', {
   style: 'currency',
@@ -24,4 +25,10 @@ export function formatDateReadable(iso: string | undefined): string {
   } catch {
     return iso;
   }
+}
+
+/** "loan granted — X" suffix. FUNDS means the loan was sized to what's actually needed after
+ *  CPF/grants, not capped by an LTV/MSR/TDSR eligibility ceiling — see loan.ts. */
+export function formatBindingConstraint(constraint: BindingConstraint): string {
+  return constraint === 'FUNDS' ? 'sized to need, below your eligible max' : `${constraint}-bound`;
 }

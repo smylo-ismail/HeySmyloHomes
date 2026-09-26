@@ -1,10 +1,11 @@
 import { FirstTimerHdbBuyWizard } from '@/components/wizard/FirstTimerHdbBuyWizard';
 import { HdbSellAndBuyWizard } from '@/components/wizard/HdbSellAndBuyWizard';
+import { HdbSellOnlyWizard } from '@/components/wizard/HdbSellOnlyWizard';
 
-// V1 ships FIRST_TIMER_HDB_BUY and HDB_SELL_AND_BUY (the latter's buy leg can target HDB or
-// private resale); remaining V1 §4 roadmap items (HDB_SELL_ONLY) and V2 (a new-launch/BUC buy
-// leg) are still unsupported.
-const SUPPORTED_TYPES = ['first-timer-hdb-buy', 'hdb-sell-and-buy'] as const;
+// V1 ships FIRST_TIMER_HDB_BUY, HDB_SELL_AND_BUY (whose buy leg can target HDB or private
+// resale), and HDB_SELL_ONLY (no buy leg — sale proceeds only); V2 (a new-launch/BUC buy leg) is
+// still unsupported.
+const SUPPORTED_TYPES = ['first-timer-hdb-buy', 'hdb-sell-and-buy', 'hdb-sell-only'] as const;
 
 export function generateStaticParams() {
   return SUPPORTED_TYPES.map((type) => ({ type }));
@@ -16,6 +17,9 @@ export default function SimulatePage({ params }: { params: { type: string } }) {
   }
   if (params.type === 'hdb-sell-and-buy') {
     return <HdbSellAndBuyWizard />;
+  }
+  if (params.type === 'hdb-sell-only') {
+    return <HdbSellOnlyWizard />;
   }
 
   return (

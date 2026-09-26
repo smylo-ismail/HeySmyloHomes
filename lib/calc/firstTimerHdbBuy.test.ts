@@ -33,13 +33,18 @@ describe('runFirstTimerHdbBuy — golden case 1 end-to-end', () => {
     expect(result.absd.absd).toBe(0);
   });
 
-  it('loan is MSR-bound at $442,841', () => {
-    expect(result.loan.bindingConstraint).toBe('MSR');
-    expect(Math.round(result.loan.loanGranted)).toBe(442_841);
+  // With $190,000 of CPF+grants available, the buyer needs less than the $442,841 MSR ceiling
+  // would allow — needs-based sizing (see loan.ts) grants only $425,000, the residual after
+  // funding price + BSD + conveyancing from CPF/grants. Confirmed against HDB's own resale
+  // payment-plan calculator (screenshots, Sep 2026) — see the loan.ts/cpf.ts comments.
+  it('loan is funds-bound (below the $442,841 MSR ceiling) at $425,000', () => {
+    expect(result.loan.maxLoanMsr).toBeCloseTo(442_841, 0);
+    expect(result.loan.bindingConstraint).toBe('FUNDS');
+    expect(Math.round(result.loan.loanGranted)).toBe(425_000);
   });
 
-  it('CPF covers the full requirement, no cash top-up', () => {
-    expect(Math.round(result.cpf.cpfNeeded)).toBe(169_759);
+  it('CPF covers the full requirement (downpayment + BSD + conveyancing), no cash top-up', () => {
+    expect(Math.round(result.cpf.cpfNeeded)).toBe(190_000);
     expect(result.cpf.cashTopUp).toBe(0);
   });
 });

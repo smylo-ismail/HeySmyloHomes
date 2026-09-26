@@ -6,13 +6,31 @@ import { z } from 'zod';
 // buying with a first-timer spouse) aren't supported — same "worth a chat" stop as the
 // first-timer flow's second-timer gate.
 // remainingLeaseYears is deliberately optional — see firstTimerHdbBuy.ts for why.
+// One entry per co-owner selling the flat — HDB's own "Calculate Sale Proceeds" tool lets each
+// seller enter their own CPF-used figure rather than a single household total, since co-owners
+// don't necessarily share the same usage history.
+const sellerSchema = z.object({
+  cpfPrincipalUsed: z.number().int().min(0),
+  cpfUsageYears: z.number().int().min(0).optional(),
+});
+
 export const hdbSellAndBuySchema = z.object({
   // Sell leg
   sellFlatType: z.enum(['2R', '3R', '4R', '5R', 'EXEC', '3GEN']),
   sellPrice: z.number().int().positive(),
   outstandingLoanBalance: z.number().int().min(0),
-  cpfPrincipalUsed: z.number().int().min(0),
-  cpfUsageYears: z.number().int().min(0).optional(),
+  sellers: z.array(sellerSchema).min(1),
+  // Outstanding HDB upgrading levy and upgrading costs — both manual entries (HDB's own
+  // calculator doesn't expose a formula for these; see sellFlat.ts's comment). Both optional,
+  // defaulting to 0 when not applicable.
+  upgradingLevy: z.number().int().min(0).optional(),
+  outstandingUpgradingCost: z.number().int().min(0).optional(),
+  // How net sale proceeds are split between sellers. Left blank (or Joint Tenancy), proceeds
+  // split equally. Tenancy-in-Common requires one share per seller, summing to 1 — see
+  // sellFlat.ts's ShareOfProceedsInput for the caveat about this not being independently
+  // verified against HDB's own Tenancy-in-Common sub-form.
+  mannerOfHolding: z.enum(['JOINT_TENANCY', 'TENANCY_IN_COMMON']).optional(),
+  ownershipShares: z.array(z.number().min(0).max(1)).optional(),
   // The date you granted (or expect to grant) your buyer the OTP — a concrete, plannable
   // event, unlike guessing a completion date. Completion is estimated forward from here.
   sellOtpGrantedDate: z.string(), // ISO date
@@ -73,6 +91,21 @@ export const hdbSellAndBuySchema = z.object({
       path: ['loanType'],
       message: 'An HDB loan can’t be used for a private property purchase.',
     });
+  }
+  if (data.mannerOfHolding === 'TENANCY_IN_COMMON') {
+    if (!data.ownershipShares || data.ownershipShares.length !== data.sellers.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ownershipShares'],
+        message: 'One ownership share is needed per seller for Tenancy-in-Common.',
+      });
+    } else if (Math.abs(data.ownershipShares.reduce((sum, s) => sum + s, 0) - 1) > 0.01) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['ownershipShares'],
+        message: 'Ownership shares must add up to 100%.',
+      });
+    }
   }
 });
 
