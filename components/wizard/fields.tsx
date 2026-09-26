@@ -39,12 +39,26 @@ export function NumberField({
           if (!/^\d+$/.test(e.clipboardData.getData('text'))) e.preventDefault();
         }}
         onChange={(e) => {
-          if (e.target.value === '') {
+          const raw = e.target.value;
+          if (raw === '') {
             onChange(undefined);
             return;
           }
-          const parsed = Number(e.target.value);
-          onChange(isNonNegativeInteger(parsed) ? parsed : undefined);
+          const parsed = Number(raw);
+          if (!isNonNegativeInteger(parsed)) {
+            onChange(undefined);
+            return;
+          }
+          // A field starting at 0 (e.g. a freshly-added seller's CPF field) can end up showing
+          // "0255278" instead of "255278" after typing — the browser won't rewrite a number
+          // input's displayed text when the new value and the old one parse to the same number
+          // (e.g. "0255278" -> 255278, same as "255278"), even though React's `value` prop did
+          // change. Force the DOM text back to the canonical string immediately so it can't
+          // diverge from what onChange reports.
+          if (raw !== String(parsed)) {
+            e.target.value = String(parsed);
+          }
+          onChange(parsed);
         }}
         className="figure mt-1 w-full border-0 border-b border-rule bg-transparent py-2 text-xl outline-none focus:border-accent dark:border-white/10"
       />
