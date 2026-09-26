@@ -65,13 +65,19 @@ export const hdbSellAndBuySchema = z.object({
   // completion/key collection as before. Buy leg only — you don't renovate a flat you're selling.
   expectedRenovationWeeks: z.number().int().positive().optional(),
   // Optional resale-process timing overrides (buy leg, RESALE flatSource only) — each defaults
-  // to config/rates.ts's hdbResaleBuy figures when left blank. Buy leg only — see
-  // hdbTimelines.ts's getResaleSellTimeline, which shares these same defaults with the sell leg
-  // rather than a separate copy, so a dedicated sell-leg override isn't offered here.
+  // to config/rates.ts's hdbResaleBuy figures when left blank.
   optionPeriodDays: z.number().int().positive().optional(),
   applicationDays: z.number().int().positive().optional(),
   acceptanceWeeks: z.number().int().positive().optional(),
   completionWeeksAfterAcceptance: z.number().int().positive().optional(),
+  // Same overrides for the sell leg, prefixed to avoid colliding with the buy-leg fields above —
+  // in reality a buyer may exercise well before the full 21-day option period runs out, or the
+  // resale application may go in earlier/later than the typical week after exercise, so both
+  // legs need their own independently-adjustable timing rather than sharing one set of knobs.
+  sellOptionPeriodDays: z.number().int().positive().optional(),
+  sellApplicationDays: z.number().int().positive().optional(),
+  sellAcceptanceWeeks: z.number().int().positive().optional(),
+  sellCompletionWeeksAfterAcceptance: z.number().int().positive().optional(),
 }).superRefine((data, ctx) => {
   if (data.flatDestination === 'HDB') {
     if (!data.flatSource) {

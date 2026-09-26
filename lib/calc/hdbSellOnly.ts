@@ -1,6 +1,6 @@
 import type { HdbSellOnlyInput } from '@/lib/schema/hdbSellOnly';
 import { computeSellFlat, type SellFlatResult } from './sellFlat';
-import { estimateSellCompletionDate } from '@/lib/timeline/hdbTimelines';
+import { estimateSellCompletionDate, type ResaleTiming } from '@/lib/timeline/hdbTimelines';
 
 export interface HdbSellOnlyResult {
   sell: SellFlatResult;
@@ -42,7 +42,13 @@ export function runHdbSellOnly(input: HdbSellOnlyInput): HdbSellOnlyResult {
     ? Math.max(cashProceedsBasis - minCashSellerKeeps, 0)
     : 0;
 
-  const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate);
+  const sellTiming: ResaleTiming = {
+    otpDays: input.optionPeriodDays,
+    applicationDays: input.applicationDays,
+    acceptanceWeeks: input.acceptanceWeeks,
+    completionWeeksAfterAcceptance: input.completionWeeksAfterAcceptance,
+  };
+  const estimatedSellCompletionDate = estimateSellCompletionDate(input.sellOtpGrantedDate, sellTiming);
 
   return {
     sell,

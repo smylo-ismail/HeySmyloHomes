@@ -73,6 +73,10 @@ export function HdbSellOnlyWizard() {
         input={reviewParsed.data}
         onEdit={() => setSubmitted(false)}
         onChangeSellOtpDate={(v) => v && patch({ sellOtpGrantedDate: v })}
+        onChangeOptionPeriodDays={(v) => patch({ optionPeriodDays: v })}
+        onChangeApplicationDays={(v) => patch({ applicationDays: v })}
+        onChangeAcceptanceWeeks={(v) => patch({ acceptanceWeeks: v })}
+        onChangeCompletionWeeksAfterAcceptance={(v) => patch({ completionWeeksAfterAcceptance: v })}
       />
     );
   }
@@ -133,6 +137,18 @@ export function HdbSellOnlyWizard() {
           label: 'OTP granted to buyer',
           value: formatDateReadable(draft.sellOtpGrantedDate),
         },
+        ...(draft.optionPeriodDays !== undefined
+          ? [{ fieldKey: 'optionPeriodDays', label: 'option period', value: `${draft.optionPeriodDays} days` }]
+          : []),
+        ...(draft.applicationDays !== undefined
+          ? [{ fieldKey: 'applicationDays', label: 'resale application submitted', value: `${draft.applicationDays} days after exercise` }]
+          : []),
+        ...(draft.acceptanceWeeks !== undefined
+          ? [{ fieldKey: 'acceptanceWeeks', label: 'HDB acceptance', value: `${draft.acceptanceWeeks} weeks after application` }]
+          : []),
+        ...(draft.completionWeeksAfterAcceptance !== undefined
+          ? [{ fieldKey: 'completionWeeksAfterAcceptance', label: 'completion', value: `${draft.completionWeeksAfterAcceptance} weeks after acceptance` }]
+          : []),
       ],
     },
     {
@@ -301,6 +317,43 @@ export function HdbSellOnlyWizard() {
               value={draft.sellOtpGrantedDate}
               onChange={(v) => patch({ sellOtpGrantedDate: v })}
             />
+
+            <details className="mt-2">
+              <summary className="cursor-pointer list-none text-xs underline text-ink/50 hover:text-ink dark:text-dark-ink/50 dark:hover:text-dark-ink [&::-webkit-details-marker]:hidden">
+                advanced: customize resale process timing
+              </summary>
+              <p className="mt-2 text-xs text-ink/50 dark:text-dark-ink/50">
+                In reality a buyer may exercise well before the full option period runs out, or
+                submit earlier/later than the typical week after exercise — override any of these
+                to match what&apos;s actually happening (or expected) instead of the textbook durations.
+              </p>
+              <div className="mt-3 space-y-4">
+                <NumberField
+                  label="option period (days) — optional"
+                  value={draft.optionPeriodDays}
+                  onChange={(v) => patch({ optionPeriodDays: v })}
+                  placeholder="default: 21 days"
+                />
+                <NumberField
+                  label="resale application submitted (days after exercise) — optional"
+                  value={draft.applicationDays}
+                  onChange={(v) => patch({ applicationDays: v })}
+                  placeholder="default: 7 days — as agreed on the OTP"
+                />
+                <NumberField
+                  label="HDB notifies acceptance (weeks after application) — optional"
+                  value={draft.acceptanceWeeks}
+                  onChange={(v) => patch({ acceptanceWeeks: v })}
+                  placeholder="default: 4 weeks"
+                />
+                <NumberField
+                  label="completion (weeks after acceptance) — optional"
+                  value={draft.completionWeeksAfterAcceptance}
+                  onChange={(v) => patch({ completionWeeksAfterAcceptance: v })}
+                  placeholder="default: 8 weeks"
+                />
+              </div>
+            </details>
           </>
         )}
 
